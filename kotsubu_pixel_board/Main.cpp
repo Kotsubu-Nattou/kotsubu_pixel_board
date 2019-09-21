@@ -16,7 +16,7 @@ void Main()
 
 	while (System::Update())
 	{
-        // ピクセルボードをスクロール
+        // ピクセルボードをドラッグしてスクロール
         if (MouseR.down()) {
             isDrag = true;
             dragStartPos = board.mPos - Cursor::Pos();
@@ -41,9 +41,10 @@ void Main()
             // 有効な添え字ならレンダリング
             if (point.x >= 0 && point.x < board.mImg.width() &&
                 point.y >= 0 && point.y < board.mImg.height()) {
-                if (isCirclePen)
+                if (isCirclePen) {
                     // 通常のs3d::Imageに対する処理が可能
                     Circle(point, 3.0).overwrite(board.mImg, Palette::Darkorange);
+                }
                 else
                     // クラスの公開メンバに直接書き込み
                     board.mImg[point].set(s3d::Palette::Cyan);
@@ -58,7 +59,7 @@ void Main()
 
 
 
-        // GUI
+        // GUI処理
         renderState = { s3d::BlendState::Default, s3d::SamplerState::Default2D };
 
         if (s3d::SimpleGUI::Button(U"Clear", Vec2(Window::Width() - 150, 20)))
