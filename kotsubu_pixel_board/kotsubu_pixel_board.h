@@ -1,23 +1,23 @@
 /**************************************************************************************************
-yƒwƒbƒ_ƒIƒ“ƒŠ[ƒNƒ‰ƒXzkotsubu_pixel_board
+ã€ãƒ˜ãƒƒãƒ€ã‚ªãƒ³ãƒªãƒ¼ã‚¯ãƒ©ã‚¹ã€‘kotsubu_pixel_board
 
-EŠT—v
-ƒhƒbƒg‚Ì‚¨ŠG‚©‚«ƒtƒB[ƒ‹ƒh‚ð’ñ‹Ÿ‚·‚éƒNƒ‰ƒXiOpenSiv3Dê—pj
-‰ð•ú‚Í•s—viƒAƒvƒŠƒP[ƒVƒ‡ƒ“I—¹Žž‚ÉŽ©“®j
+ãƒ»æ¦‚è¦
+ãƒ‰ãƒƒãƒˆã®ãŠçµµã‹ããƒ•ã‚£ãƒ¼ãƒ«ãƒ‰ã‚’æä¾›ã™ã‚‹ã‚¯ãƒ©ã‚¹ï¼ˆOpenSiv3Då°‚ç”¨ï¼‰
+æ˜Žç¤ºçš„ãªè§£æ”¾ã¯ä¸è¦
 
-EŽg‚¢•û
+ãƒ»ä½¿ã„æ–¹
 #include <Siv3D.hpp>
 #include "kotsubu_pixel_board.h"
-KotsubuPixelBoard board(8.0);  // ‰ð‘œ“xƒXƒP[ƒ‹‚ª8.0iƒhƒbƒg‚Ì‘å‚«‚³j‚Ì‚¨ŠG‚©‚«ƒtƒB[ƒ‹ƒh‚ð¶¬
-ƒƒCƒ“ƒ‹[ƒv
-    if (flag) setResoScale(20.0);               // ‰ð‘œ“xƒXƒP[ƒ‹‚ð•ÏXiƒtƒB[ƒ‹ƒh‚Í”’Ž†‚É–ß‚éj
-    board.clear();                              // ƒtƒB[ƒ‹ƒh‚ð”’Ž†‚É–ß‚·
-    int w = board.mImg.width();                 // ƒƒ“ƒomImg‚ÍƒtƒB[ƒ‹ƒh‚Ì“à—eBs3d::ImageŒ^
-    s3d::Point point = ƒJ[ƒ\ƒ‹“™‚ÌÀ•W‚ðƒtƒB[ƒ‹ƒhÀ•W‚É‚µ‚½‚à‚Ì;
-    board.mImg[point].set(s3d::Palette::Cyan);  // “_‚ðƒŒƒ“ƒ_ƒŠƒ“ƒOi“Y‚¦Žš”ÍˆÍ‚É’ˆÓIj
-    board.mPos = { 0.0, 5.0 };                  // ƒtƒB[ƒ‹ƒh‚ð‚¸‚ç‚·Bs3d::Vec2Œ^
-    board.setDrawScale(2.0);                    // ƒhƒ[Žž‚ÌƒY[ƒ€ik¬Žž‚ÍƒtƒB[ƒ‹ƒh‚ªŒ©Ø‚ê‚éj
-    board.draw();                               // ƒhƒ[
+KotsubuPixelBoard board(8.0);  // è§£åƒåº¦ã‚¹ã‚±ãƒ¼ãƒ«ãŒ8.0ï¼ˆãƒ‰ãƒƒãƒˆã®å¤§ãã•ï¼‰ã®ãŠçµµã‹ããƒ•ã‚£ãƒ¼ãƒ«ãƒ‰ã‚’ç”Ÿæˆ
+ãƒ¡ã‚¤ãƒ³ãƒ«ãƒ¼ãƒ—
+    if (flag) setResoScale(20.0);               // è§£åƒåº¦ã‚¹ã‚±ãƒ¼ãƒ«ã‚’å¤‰æ›´ï¼ˆãƒ•ã‚£ãƒ¼ãƒ«ãƒ‰ã¯ç™½ç´™ã«æˆ»ã‚‹ï¼‰
+    board.clear();                              // ãƒ•ã‚£ãƒ¼ãƒ«ãƒ‰ã‚’ç™½ç´™ã«æˆ»ã™
+    int w = board.mImg.width();                 // ãƒ¡ãƒ³ãƒmImgã¯ãƒ•ã‚£ãƒ¼ãƒ«ãƒ‰ã®å†…å®¹ã€‚s3d::Imageåž‹
+    s3d::Point point = ã‚«ãƒ¼ã‚½ãƒ«ç­‰ã®åº§æ¨™ã‚’ãƒ•ã‚£ãƒ¼ãƒ«ãƒ‰åº§æ¨™ã«ã—ãŸã‚‚ã®;
+    board.mImg[point].set(s3d::Palette::Cyan);  // ç‚¹ã‚’ãƒ¬ãƒ³ãƒ€ãƒªãƒ³ã‚°ï¼ˆæ·»ãˆå­—ç¯„å›²ã«æ³¨æ„ï¼ï¼‰
+    board.mPos = { 0.0, 5.0 };                  // ãƒ•ã‚£ãƒ¼ãƒ«ãƒ‰ã‚’ãšã‚‰ã™ã€‚s3d::Vec2åž‹
+    board.setDrawScale(2.0);                    // ãƒ‰ãƒ­ãƒ¼æ™‚ã®ã‚ºãƒ¼ãƒ ï¼ˆç¸®å°æ™‚ã¯ãƒ•ã‚£ãƒ¼ãƒ«ãƒ‰ãŒè¦‹åˆ‡ã‚Œã‚‹ï¼‰
+    board.draw();                               // ãƒ‰ãƒ­ãƒ¼
 **************************************************************************************************/
 
 #pragma once
@@ -27,7 +27,7 @@ KotsubuPixelBoard board(8.0);  // ‰ð‘œ“xƒXƒP[ƒ‹‚ª8.0iƒhƒbƒg‚Ì‘å‚«‚³j‚Ì‚¨ŠG‚©‚
 
 class KotsubuPixelBoard
 {
-    // y“à•”ƒtƒB[ƒ‹ƒhz
+    // ã€å†…éƒ¨ãƒ•ã‚£ãƒ¼ãƒ«ãƒ‰ã€‘
     double              mDrawScale;
     double              mResoScale;
     s3d::Image          mBlankImg;
@@ -36,13 +36,13 @@ class KotsubuPixelBoard
 
 
 public:
-    // yŒöŠJƒtƒB[ƒ‹ƒhz
-    s3d::Vec2  mPos;  // ƒsƒNƒZƒ‹ƒ{[ƒh‚Ì¶ãˆÊ’u
-    s3d::Image mImg;  // •`‰æƒCƒ[ƒWB‚±‚ê‚É’¼Ú.set()‚È‚Ç‚Å‘‚«ž‚Þ
+    // ã€å…¬é–‹ãƒ•ã‚£ãƒ¼ãƒ«ãƒ‰ã€‘
+    s3d::Vec2  mPos;  // ãƒ”ã‚¯ã‚»ãƒ«ãƒœãƒ¼ãƒ‰ã®å·¦ä¸Šä½ç½®
+    s3d::Image mImg;  // æç”»ã‚¤ãƒ¡ãƒ¼ã‚¸ã€‚ã“ã‚Œã«ç›´æŽ¥.set()ãªã©ã§æ›¸ãè¾¼ã‚€
 
 
 
-    // yƒRƒ“ƒXƒgƒ‰ƒNƒ^z
+    // ã€ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿ã€‘
     KotsubuPixelBoard(double resoScale)
     {
         setDrawScale(1.0);
@@ -51,18 +51,18 @@ public:
 
 
 
-    // yƒƒ\ƒbƒhz•`‰æƒCƒ[ƒW‚ð”’Ž†‚É–ß‚·
-    // Œ»Ý‚Ì‰ð‘œ“xƒXƒP[ƒ‹‚É‰ž‚¶‚½‚‘¬‚ÈƒNƒŠƒAB‚Ü‚½AŽ—‚½‚æ‚¤‚È—p“r‚Æ‚µ‚Ä
-    // s3d::Image‚Ìclear()‚ª‚ ‚é‚ª“à—e‚ª”jŠü‚³‚ê‚Ä‚µ‚Ü‚¤Bfill()‚Í•‰‰×‚ª‚‚¢
+    // ã€ãƒ¡ã‚½ãƒƒãƒ‰ã€‘æç”»ã‚¤ãƒ¡ãƒ¼ã‚¸ã‚’ç™½ç´™ã«æˆ»ã™
+    // ç¾åœ¨ã®è§£åƒåº¦ã‚¹ã‚±ãƒ¼ãƒ«ã«å¿œã˜ãŸé«˜é€Ÿãªã‚¯ãƒªã‚¢ã€‚ã¾ãŸã€ä¼¼ãŸã‚ˆã†ãªç”¨é€”ã¨ã—ã¦
+    // s3d::Imageã®clear()ãŒã‚ã‚‹ãŒå†…å®¹ãŒç ´æ£„ã•ã‚Œã¦ã—ã¾ã†ã€‚fill()ã¯è² è·ãŒé«˜ã„
     void clear()
     {
-        // •`‰æƒCƒ[ƒW‚ðƒuƒ‰ƒ“ƒNƒCƒ[ƒW‚Å’u‚«Š·‚¦‚éi‚±‚Ì•û–@‚ª‚‘¬j
+        // æç”»ã‚¤ãƒ¡ãƒ¼ã‚¸ã‚’ãƒ–ãƒ©ãƒ³ã‚¯ã‚¤ãƒ¡ãƒ¼ã‚¸ã§ç½®ãæ›ãˆã‚‹ï¼ˆã“ã®æ–¹æ³•ãŒé«˜é€Ÿï¼‰
         mImg = mBlankImg;
     }
 
 
 
-    // yƒZƒbƒ^z‰ð‘œ“xƒXƒP[ƒ‹
+    // ã€ã‚»ãƒƒã‚¿ã€‘è§£åƒåº¦ã‚¹ã‚±ãƒ¼ãƒ«
     void setResoScale(double scale)
     {
         static double oldScale = -1;
@@ -70,20 +70,20 @@ public:
         if (scale == oldScale) return;
         mResoScale = scale;
 
-        // V‚µ‚¢ƒTƒCƒY‚Ìƒuƒ‰ƒ“ƒNƒCƒ[ƒW‚ðì‚é
+        // æ–°ã—ã„ã‚µã‚¤ã‚ºã®ãƒ–ãƒ©ãƒ³ã‚¯ã‚¤ãƒ¡ãƒ¼ã‚¸ã‚’ä½œã‚‹
         double rate = 1.0 / mResoScale;
         mBlankImg = s3d::Image(static_cast<size_t>(s3d::Window::Width()  * rate),
                                static_cast<size_t>(s3d::Window::Height() * rate));
 
-        // “®“IƒeƒNƒXƒ`ƒƒ‚Íu“¯‚¶ƒTƒCƒYv‚ÌƒCƒ[ƒW‚ð‹Ÿ‹‹‚µ‚È‚¢‚ÆXV‚³‚ê‚È‚¢‚½‚ßˆê’U‰ð•úB
-        // ƒ•â‘«„ ƒeƒNƒXƒ`ƒƒ‚âƒCƒ[ƒW‚Ìrelease()‚âclear()‚ÆAdraw()‚ª•ÊŠ‚Ìê‡A
-        // u–³‚¢•¨v‚ÌƒAƒNƒZƒX”­¶‚É’ˆÓ‚·‚éB‚Ü‚½AƒeƒNƒXƒ`ƒƒ“o˜^‚È‚Ç‚Ìd‚¢ˆ—‚ð
-        // ˜A‘±‚Ås‚Á‚½ê‡‚ÉƒGƒ‰[‚·‚é‚±‚Æ‚ª‚ ‚é‚Ì‚Å’ˆÓ‚·‚éB
+        // å‹•çš„ãƒ†ã‚¯ã‚¹ãƒãƒ£ã¯ã€ŒåŒã˜ã‚µã‚¤ã‚ºã€ã®ã‚¤ãƒ¡ãƒ¼ã‚¸ã‚’ä¾›çµ¦ã—ãªã„ã¨æ›´æ–°ã•ã‚Œãªã„ãŸã‚ä¸€æ—¦è§£æ”¾ã€‚
+        // ï¼œè£œè¶³ï¼ž ãƒ†ã‚¯ã‚¹ãƒãƒ£ã‚„ã‚¤ãƒ¡ãƒ¼ã‚¸ã®release()ã‚„clear()ã¨ã€draw()ãŒåˆ¥æ‰€ã®å ´åˆã€
+        // ã€Œç„¡ã„ç‰©ã€ã®ã‚¢ã‚¯ã‚»ã‚¹ç™ºç”Ÿã«æ³¨æ„ã™ã‚‹ã€‚ã¾ãŸã€ãƒ†ã‚¯ã‚¹ãƒãƒ£ç™»éŒ²ãªã©ã®é‡ã„å‡¦ç†ã‚’
+        // é€£ç¶šã§è¡Œã£ãŸå ´åˆã«ã€ã‚¨ãƒ©ãƒ¼ã™ã‚‹ã“ã¨ãŒã‚ã‚‹ã®ã§æ³¨æ„ã™ã‚‹ã€‚
         mTex.release();
 
-        // •`‰æƒCƒ[ƒW‚ðƒNƒŠƒAB
-        // •`‰æƒXƒP[ƒ‹‚Ì•ÏX‚Å‚Í“à—e‚Í•Ï‚¦‚È‚¢•û‚ªŽ©‘RB‰ð‘œ“xƒXƒP[ƒ‹‚Ì
-        // •ÏX‚Å‚ÍƒŠƒZƒbƒg‚µ‚½•û‚ªƒƒWƒbƒN‚ªŠÈ’P‚É‚È‚Á‚Ä‚æ‚¢
+        // æç”»ã‚¤ãƒ¡ãƒ¼ã‚¸ã‚’ã‚¯ãƒªã‚¢ã€‚
+        // æç”»ã‚¹ã‚±ãƒ¼ãƒ«ã®å¤‰æ›´ã§ã¯å†…å®¹ã¯å¤‰ãˆãªã„æ–¹ãŒè‡ªç„¶ã€‚è§£åƒåº¦ã‚¹ã‚±ãƒ¼ãƒ«ã®
+        // å¤‰æ›´ã§ã¯ãƒªã‚»ãƒƒãƒˆã™ã‚‹æ–¹ãŒã€ãƒ­ã‚¸ãƒƒã‚¯ãŒç°¡å˜ã«ãªã£ã¦ã‚ˆã„
         mImg = mBlankImg;
 
         oldScale = mResoScale;
@@ -91,7 +91,7 @@ public:
 
 
 
-    // yƒZƒbƒ^z•`‰æƒXƒP[ƒ‹
+    // ã€ã‚»ãƒƒã‚¿ã€‘æç”»ã‚¹ã‚±ãƒ¼ãƒ«
     void setDrawScale(double scale)
     {
         if (scale < 0.0) scale = 0.0;
@@ -100,13 +100,13 @@ public:
 
 
 
-    // yƒƒ\ƒbƒhzƒhƒ[
+    // ã€ãƒ¡ã‚½ãƒƒãƒ‰ã€‘ãƒ‰ãƒ­ãƒ¼
     void draw()
     {
-        // “®“IƒeƒNƒXƒ`ƒƒ‚ðXVi“¯‚¶‘å‚«‚³‚Å‚È‚¢‚ÆXV‚³‚ê‚È‚¢j
+        // å‹•çš„ãƒ†ã‚¯ã‚¹ãƒãƒ£ã‚’æ›´æ–°ï¼ˆåŒã˜å¤§ãã•ã§ãªã„ã¨æ›´æ–°ã•ã‚Œãªã„ï¼‰
         mTex.fill(mImg);
 
-        // “®“IƒeƒNƒXƒ`ƒƒ‚ðƒXƒP[ƒŠƒ“ƒO‚µ‚Äƒhƒ[
+        // å‹•çš„ãƒ†ã‚¯ã‚¹ãƒãƒ£ã‚’ã‚¹ã‚±ãƒ¼ãƒªãƒ³ã‚°ã—ã¦ãƒ‰ãƒ­ãƒ¼
         mTex.scaled(mResoScale * mDrawScale).draw(mPos);
     }
 };
