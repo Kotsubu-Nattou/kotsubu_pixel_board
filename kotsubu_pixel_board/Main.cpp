@@ -1,4 +1,4 @@
-﻿#include <Siv3D.hpp>
+#include <Siv3D.hpp>
 #include "kotsubu_pixel_board.h"
 
 
@@ -14,9 +14,8 @@ void Main()
 	while (System::Update())
 	{
         // ピクセルボードをクリア
-        if (MouseR.down()) {
+        if (MouseR.down())
             board.clear();
-        }
         
 
         // ピクセルボードをレンダリング
