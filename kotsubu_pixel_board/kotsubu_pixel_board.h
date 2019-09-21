@@ -69,6 +69,8 @@ public:
 
 
     // 【セッタ】解像度スケール
+    // 新しいスケールが適応されると、描画イメージはクリア。
+    // ＜注意＞ この関数は負荷が高く、連続でコールするとエラーすることがある
     void setResoScale(double scale)
     {
         static double oldScale = -1;
