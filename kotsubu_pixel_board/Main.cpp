@@ -1,3 +1,9 @@
+/////////////////////////////////////////////////////////////////////////////////////
+//
+// ピクセルボードクラスの使用例
+//
+/////////////////////////////////////////////////////////////////////////////////////
+
 #include <Siv3D.hpp>
 #include "kotsubu_pixel_board.h"
 
@@ -5,9 +11,10 @@
 
 void Main()
 {
+    size_t width = 40, height = 30;
+    double scale = 20.0;
+    KotsubuPixelBoard board(width, height, scale);
     Font font = Font(24);
-    double resoScale = 30.0, drawScale = 1.0;
-    KotsubuPixelBoard board(resoScale);
     bool isDrag = false;
     Vec2 dragStartPos;
     bool isCirclePen = false;
@@ -34,16 +41,15 @@ void Main()
         if (MouseL.pressed()) {
             // カーソル位置 ⇒ イメージの添え字
             Vec2 pos = Cursor::Pos() - board.mPos;  // カーソル座標にピクセルボード位置を適応
-            pos /= resoScale;                       // 解像度スケールを適応
-            pos /= drawScale;                       // 描画スケールを適応
-            s3d::Point point(pos.asPoint());        // イメージの添え字
+            pos /= scale;                           // 描画スケールを適応
+            s3d::Point point(pos.asPoint());        // イメージの添え字に変換
 
             // 有効な添え字ならレンダリング
             if (point.x >= 0 && point.x < board.mImg.width() &&
                 point.y >= 0 && point.y < board.mImg.height()) {
                 if (isCirclePen) {
-                    // 通常のs3d::Imageに対する処理が可能
-                    Circle(point, 3.0).overwrite(board.mImg, Palette::Darkorange);
+                    // mImgは通常のs3d::Image型と同じことが可能
+                    Circle(point, 2.0).overwrite(board.mImg, Palette::Darkorange);
                 }
                 else
                     // クラスの公開メンバに直接書き込み
@@ -62,23 +68,28 @@ void Main()
         // GUI処理
         renderState = { s3d::BlendState::Default, s3d::SamplerState::Default2D };
 
-        if (s3d::SimpleGUI::Button(U"Clear", Vec2(Window::Width() - 150, 20)))
+        if (s3d::SimpleGUI::Button(U"Clear", Vec2(Window::Width() - 160, 20)))
             board.clear();
 
-        font(U"mPos: ", (int)board.mPos.x, U", ", (int)board.mPos.y).draw(Vec2(Window::Width() - 200, 70));
+        font(U"Pos: ", (int)board.mPos.x, U", ", (int)board.mPos.y).draw(Vec2(Window::Width() - 210, 70));
 
-        font(U"drawScale:", drawScale).draw(Vec2(Window::Width() - 200, 120));
-        if (s3d::SimpleGUI::Slider(drawScale, 0.0, 10.0, Vec2(Window::Width() - 200, 150), 200))
-            board.setDrawScale(drawScale);
-        if (s3d::SimpleGUI::Button(U"Reset", Vec2(Window::Width() -150, 190))) {
-            drawScale = 1.0;
-            board.setDrawScale(drawScale);
-        }
+        double w = width, h = height;  // スライダー用に型を変換
+        font(U"Width: ", width).draw(Vec2(Window::Width() - 210, 110));
+        s3d::SimpleGUI::Slider(w, 0.0, 100.0, Vec2(Window::Width() - 210, 140), 200);
 
-        font(U"resoScale:", resoScale).draw(Vec2(Window::Width() - 200, 240));
-        if (s3d::SimpleGUI::Slider(resoScale, 1.0, 100.0, Vec2(Window::Width() - 200, 270), 200))
-            board.setResoScale(resoScale);  // 連続的にコールされたときのエラーはsiv3dの仕様
+        font(U"Height: ", height).draw(Vec2(Window::Width() - 210, 180));
+        s3d::SimpleGUI::Slider(h, 0.0, 100.0, Vec2(Window::Width() - 210, 210), 200);
 
-        s3d::SimpleGUI::CheckBox(isCirclePen, U"Circle Pen", Vec2(Window::Width() - 200, 320));
+        width = w; height = h;
+        board.setSize(width, height);  // 連続的に異なるサイズを適用すると負荷が高く、エラーするので注意
+
+        font(U"Scale: ", scale).draw(Vec2(Window::Width() - 210, 250));
+        if (s3d::SimpleGUI::Slider(scale, 0.0, 100.0, Vec2(Window::Width() - 210, 280), 200))
+            board.setScale(scale);
+
+        s3d::SimpleGUI::CheckBox(board.mVisible, U"Visible", Vec2(Window::Width() - 210, 340));
+
+        s3d::SimpleGUI::CheckBox(isCirclePen, U"Circle Pen", Vec2(Window::Width() - 210, 400));
+
     }
 }

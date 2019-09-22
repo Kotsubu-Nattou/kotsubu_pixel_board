@@ -1,30 +1,26 @@
 /**************************************************************************************************
-【ヘッダオンリークラス】kotsubu_pixel_board
+【ヘッダオンリークラス】kotsubu_pixel_board v1.0
 
 ・概要
 ドットのお絵かきボードを提供するクラス（OpenSiv3D専用）
-基本的に「画面いっぱい」の1枚のドット領域としての利用を想定。
-ボードの容量は、現在のウィンドウのサイズを「解像度スケール」で
-割った分しか確保しない（クリアの高速化や簡略化のため）
-上記理由により、基本的に画面外にレンダリングはできない。また、ズームアウトや
-スクロールした際に「ボードの領域外」が露呈することがある。
 レンダリングは、クラスの公開フィールド s3d::Image mImg に対して直接書き込む（高速化というか手抜き）
 明示的な解放は不要。
 
 ・使い方
 #include <Siv3D.hpp>
 #include "kotsubu_pixel_board.h"
-KotsubuPixelBoard board(8.0);  // 解像度スケールが8.0（ドットの大きさ）のお絵かきフィールドを生成
+KotsubuPixelBoard board(32, 24, 10.0);          // 32x24ドット、拡大率10のお絵かきボードを生成
 メインループ
     board.clear();                              // ボードを白紙にする
-    int w = board.mImg.width();                 // 公開メンバmImgはボード内容（s3d::Image型）
+    int w = board.mImg.width();                 // 公開メンバmImgはボードの内容（s3d::Image型）
     s3d::Point point = カーソル等の座標をボード座標にしたもの;
     board.mImg[point].set(s3d::Palette::Cyan);  // 点をレンダリング（添え字範囲に注意！）
-    Circle(point, 3.0).overwrite(board.mImg, Palette::Red);  // mImgは通常のs3d::Image型に対する処理が可能
-    board.mPos = { 0.0, 5.0 };                  // ボードをずらす（公開メンバmPos）
-    board.setDrawScale(2.0);                    // ドロー時のズーム（縮小時はボードが見切れる）
+    Circle(point, 3.0).overwrite(board.mImg, Palette::Red);  // mImgは通常のs3d::Image型と同じことが可能
+    board.mPos = { 0.0, 5.0 };                  // ボードをずらす
+    board.setScale(2.0);                        // ズーム
     board.draw();                               // ドロー
-    if (flag) setResoScale(20.0);               // 解像度スケールを変更（ボードは白紙になる）
+    board.setSize(48, 36);                      // サイズを変更（ボードは白紙になる。高負荷）
+    board.mVisible = false;                     // 非表示にする
 **************************************************************************************************/
 
 #pragma once
@@ -35,8 +31,7 @@ KotsubuPixelBoard board(8.0);  // 解像度スケールが8.0（ドットの大�
 class KotsubuPixelBoard
 {
     // 【内部フィールド】
-    double              mDrawScale;
-    double              mResoScale;
+    double              mScale;
     s3d::Image          mBlankImg;
     s3d::DynamicTexture mTex;
 
@@ -44,43 +39,44 @@ class KotsubuPixelBoard
 
 public:
     // 【公開フィールド】
-    s3d::Vec2  mPos;  // ピクセルボードの左上位置
-    s3d::Image mImg;  // 描画イメージ。これに直接.set()などで書き込む
+    s3d::Vec2  mPos;      // ピクセルボードの左上位置
+    s3d::Image mImg;      // 描画用イメージ。これに直接.set()などで書き込む
+    bool       mVisible;  // 表示非表示の切り替え
 
 
 
     // 【コンストラクタ】
-    KotsubuPixelBoard(double resoScale)
+    KotsubuPixelBoard(size_t width, size_t height, double scale = 1.0)
     {
-        setDrawScale(1.0);
-        setResoScale(resoScale);
+        mVisible = true;
+        setScale(scale);
+        setSize(width, height);
     }
 
 
 
-    // 【セッタ】描画スケール
-    void setDrawScale(double scale)
+    // 【セッタ】描画の拡大率
+    void setScale(double scale)
     {
         if (scale < 0.0) scale = 0.0;
-        mDrawScale = scale;
+        mScale = scale;
     }
 
 
 
-    // 【セッタ】解像度スケール
-    // 新しいスケールが適応されると、描画イメージはクリア。
-    // ＜注意＞ この関数は負荷が高く、連続でコールするとエラーすることがある
-    void setResoScale(double scale)
+    // 【セッタ】サイズ（ドット単位）
+    // 設定したサイズが以前のサイズから更新した場合、描画イメージはクリアされる。
+    // ＜注意＞ この関数は負荷が高く、連続的に異なるサイズを設定するとエラーすることがある
+    void setSize(size_t width, size_t height)
     {
-        static double oldScale = -1;
-        if (scale < 1.0) scale = 1.0;
-        if (scale == oldScale) return;
-        mResoScale = scale;
+        static size_t oldWidth  = -1;
+        static size_t oldHeight = -1;
+        if (width  < 1) width  = 1;
+        if (height < 1) height = 1;
+        if ((width == oldWidth) && (height == oldHeight)) return;
 
         // 新しいサイズのブランクイメージを作る
-        double rate = 1.0 / mResoScale;
-        mBlankImg = s3d::Image(static_cast<size_t>(s3d::Window::Width()  * rate),
-                               static_cast<size_t>(s3d::Window::Height() * rate));
+        mBlankImg = s3d::Image(width, height);
 
         // 動的テクスチャは「同じサイズ」のイメージを供給しないと更新されないため一旦解放。
         // ＜補足＞ テクスチャやイメージのrelease()やclear()と、draw()が別所の場合、
@@ -88,22 +84,21 @@ public:
         // 連続で行った場合に、エラーすることがあるので注意する。
         mTex.release();
 
-        // 描画イメージをクリア。
-        // 描画スケールの変更では内容は変えない方が自然。解像度スケールの
-        // 変更ではリセットする方が、ロジックが簡単になってよい
+        // 描画用イメージをクリア
         mImg = mBlankImg;
 
-        oldScale = mResoScale;
+        oldWidth  = width;
+        oldHeight = height;
     }
 
 
 
-    // 【メソッド】描画イメージを白紙に戻す
-    // 現在の解像度スケールに応じた高速なクリア。また、似たような用途として
+    // 【メソッド】イメージを白紙に戻す
+    // 現在のイメージサイズに応じた高速なクリア。また、似たような用途として
     // s3d::Imageのclear()があるが内容が破棄されてしまう。fill()は負荷が高い
     void clear()
     {
-        // 描画イメージをブランクイメージで置き換える（この方法が高速）
+        // 描画用イメージをブランクイメージで置き換える（この方法が高速）
         mImg = mBlankImg;
     }
 
@@ -112,10 +107,12 @@ public:
     // 【メソッド】ドロー
     void draw()
     {
-        // 動的テクスチャを更新（同じ大きさでないと更新されない）
-        mTex.fill(mImg);
+        if (mVisible) {
+            // 動的テクスチャを更新（同じ大きさでないと更新されない）
+            mTex.fill(mImg);
 
-        // 動的テクスチャをスケーリングしてドロー
-        mTex.scaled(mResoScale * mDrawScale).draw(mPos);
+            // 動的テクスチャをスケーリングしてドロー
+            mTex.scaled(mScale).draw(mPos);
+        }
     }
 };
