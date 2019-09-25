@@ -1,5 +1,5 @@
 /**************************************************************************************************
-【ヘッダオンリークラス】kotsubu_pixel_board v1.0
+【ヘッダオンリークラス】kotsubu_pixel_board v1.1
 
 ・概要
 ドットのお絵かきボードを提供するクラス（OpenSiv3D専用）
@@ -12,10 +12,10 @@
 KotsubuPixelBoard board(32, 24, 10.0);          // 32x24ドット、拡大率10のお絵かきボードを生成
 メインループ
     board.clear();                              // ボードを白紙にする
-    int w = board.mImg.width();                 // 公開メンバmImgはボードの内容（s3d::Image型）
+    int w = board.mImg.width();                 // 公開メンバmImgはボードの内容そのもの（s3d::Image型）
     s3d::Point point = カーソル等の座標をボード座標にしたもの;
     board.mImg[point].set(s3d::Palette::Cyan);  // 点をレンダリング（添え字範囲に注意！）
-    Circle(point, 3.0).overwrite(board.mImg, Palette::Red);  // mImgは通常のs3d::Image型と同じことが可能
+    Circle(point, 3.0).overwrite(board.mImg, Palette::Red);  // mImgはs3d::Image型と同じ扱いが可能
     board.mPos = { 0.0, 5.0 };                  // ボードをずらす
     board.setScale(2.0);                        // ズーム
     board.draw();                               // ドロー
@@ -40,12 +40,15 @@ class KotsubuPixelBoard
 public:
     // 【公開フィールド】
     s3d::Vec2  mPos;      // ピクセルボードの左上位置
-    s3d::Image mImg;      // 描画用イメージ。これに直接.set()などで書き込む
+    s3d::Image mImg;      // 描画用イメージ。これに直接.set()などで書き込んで.draw()
     bool       mVisible;  // 表示非表示の切り替え
 
 
 
     // 【コンストラクタ】
+    KotsubuPixelBoard() : KotsubuPixelBoard(s3d::Window::Width(), s3d::Window::Height(), 1.0)
+    {}
+
     KotsubuPixelBoard(size_t width, size_t height, double scale = 1.0)
     {
         mVisible = true;
@@ -60,6 +63,14 @@ public:
     {
         if (scale < 0.0) scale = 0.0;
         mScale = scale;
+    }
+
+
+
+    // 【ゲッタ】描画の拡大率
+    double getScale()
+    {
+        return mScale;
     }
 
 
