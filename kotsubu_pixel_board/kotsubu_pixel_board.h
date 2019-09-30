@@ -1,26 +1,30 @@
 /**************************************************************************************************
-【ヘッダオンリークラス】kotsubu_pixel_board v1.1
+【ヘッダオンリークラス】kotsubu_pixel_board v1.2
 
 ・概要
 ドットのお絵かきボードを提供するクラス（OpenSiv3D専用）
-レンダリングは、クラスの公開フィールド s3d::Image mImg に対して直接書き込む（高速化というか手抜き）
+1つのボードにつき、1つの描画イメージを内包する。
+座標系       --- クライアント左上を原点とするボードの位置, ボード左上を原点とする描画イメージの座標
+レンダリング --- クラスの公開フィールド s3d::Image mImg に対して直接書き込む（高速化というか手抜き）
 明示的な解放は不要。
 
 ・使い方
 #include <Siv3D.hpp>
 #include "kotsubu_pixel_board.h"
-KotsubuPixelBoard board(32, 24, 10.0);          // 32x24ドット、拡大率10のお絵かきボードを生成
+KotsubuPixelBoard board(32, 24, 10.0);         // 32x24ドット、ズーム率10のお絵かきボードを生成
 メインループ
-    board.clear();                              // ボードを白紙にする
-    int w = board.mImg.width();                 // 公開メンバmImgはボードの内容そのもの（s3d::Image型）
-    s3d::Point point = カーソル等の座標をボード座標にしたもの;
-    board.mImg[point].set(s3d::Palette::Cyan);  // 点をレンダリング（添え字範囲に注意！）
-    Circle(point, 3.0).overwrite(board.mImg, Palette::Red);  // mImgはs3d::Image型と同じ扱いが可能
-    board.mPos = { 0.0, 5.0 };                  // ボードをずらす
-    board.setScale(2.0);                        // ズーム
-    board.draw();                               // ドロー
-    board.setSize(48, 36);                      // サイズを変更（ボードは白紙になる。高負荷）
-    board.mVisible = false;                     // 非表示にする
+    board.clear();                             // ボードを白紙にする
+    int w = board.mImg.width();                // 公開メンバmImgはボードの描画内容（s3d::Image型）
+    s3d::Point pos = board.toImagePos(Cursor::Pos());         // カーソル座標をイメージ座標に変換
+    if (board.checkRange(pos)) {                              // イメージの範囲内かどうかをチェック
+        board.mImg[pos].set(s3d::Palette::Cyan);              // 点をレンダリング（添え字範囲に注意）
+        Circle(pos, 3.0).overwrite(board.mImg, Palette::Red); // mImgはs3d::Image型と同じ扱いが可能
+    }
+    board.mBoardPos = { 0.0, 5.0 };            // ボードをスクロール
+    board.setScale(2.0);                       // ズーム
+    board.draw();                              // ドロー
+    board.setSize(48, 36);                     // ドットサイズを変更（ボードは白紙になる。高負荷注意）
+    board.mVisible = false;                    // 非表示にする
 **************************************************************************************************/
 
 #pragma once
@@ -39,9 +43,9 @@ class KotsubuPixelBoard
 
 public:
     // 【公開フィールド】
-    s3d::Vec2  mPos;      // ピクセルボードの左上位置
-    s3d::Image mImg;      // 描画用イメージ。これに直接.set()などで書き込んで.draw()
-    bool       mVisible;  // 表示非表示の切り替え
+    s3d::Vec2  mBoardPos;  // ピクセルボードの左上位置
+    s3d::Image mImg;       // 描画用イメージ。これに直接.set()などで書き込んで.draw()
+    bool       mVisible;   // 表示非表示の切り替え
 
 
 
@@ -58,7 +62,7 @@ public:
 
 
 
-    // 【セッタ】描画の拡大率
+    // 【セッタ】ズーム率
     void setScale(double scale)
     {
         if (scale < 0.0) scale = 0.0;
@@ -67,7 +71,7 @@ public:
 
 
 
-    // 【ゲッタ】描画の拡大率
+    // 【ゲッタ】ズーム率
     double getScale()
     {
         return mScale;
@@ -123,7 +127,40 @@ public:
             mTex.fill(mImg);
 
             // 動的テクスチャをスケーリングしてドロー
-            mTex.scaled(mScale).draw(mPos);
+            mTex.scaled(mScale).draw(mBoardPos);
         }
+    }
+
+
+
+    // 【メソッド】クライアント座標をイメージ座標に変換
+    // カーソル座標などから、スクロール位置やズーム率を考慮したイメージ座標に変換。
+    // イメージ配列の添え字として利用できる（範囲チェック等は行わないので慎重に）
+    s3d::Point toImagePos(s3d::Point clientPos)
+    {
+        return ((clientPos - mBoardPos) / mScale).asPoint();
+    }
+
+
+
+    // 【メソッド】イメージ座標をクライアント座標に変換
+    // イメージ座標から、スクロール位置やズーム率を考慮したクライアント座標に変換
+    s3d::Point toClientPos(s3d::Point imagePos)
+    {
+        return (imagePos * mScale + mBoardPos).asPoint();
+    }
+
+
+
+    // 【メソッド】イメージ座標の範囲内かどうかを返す
+    bool checkRange(s3d::Point imagePos)
+    {
+        return (imagePos.x >= 0) && (imagePos.x < mImg.width()) &&
+               (imagePos.y >= 0) && (imagePos.y < mImg.height());
+    }
+
+    bool checkRange(s3d::Vector2D<int> imagePos)
+    {
+        return checkRange(imagePos.asPoint());
     }
 };

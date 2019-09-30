@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////////////////////////////
 //
-// ピクセルボードクラスの使用例
+// ピクセルボードクラスの利用例
 //
 /////////////////////////////////////////////////////////////////////////////////////
 
@@ -14,46 +14,44 @@ void Main()
     size_t width = 40, height = 30;
     double scale = 20.0;
     KotsubuPixelBoard board(width, height, scale);
-    Font font = Font(24);
-    bool isDrag = false;
-    Vec2 dragStartPos;
+    bool isScroll = false;
+    Vec2 scrollStartPos;
     bool isCirclePen = false;
+    Font font = Font(24);
+    int  guiAreaLeft = Window::Width() - 220;
 
 
 
-	while (System::Update())
-	{
+    while (System::Update())
+    {
         // ピクセルボードをドラッグしてスクロール
-        if (MouseR.down()) {
-            isDrag = true;
-            dragStartPos = board.mPos - Cursor::Pos();
+        if (MouseR.down() &&
+            Cursor::Pos().x < guiAreaLeft) {
+            isScroll = true;
+            scrollStartPos = board.mBoardPos - Cursor::Pos();
         }
 
         if (MouseR.up())
-            isDrag = false;
+            isScroll = false;
         
-        if (isDrag)
-            board.mPos = dragStartPos + Cursor::Pos();
+        if (isScroll)
+            board.mBoardPos = scrollStartPos + Cursor::Pos();
 
 
 
         // ピクセルボードをレンダリング
-        if (MouseL.pressed()) {
-            // カーソル位置 ⇒ イメージの添え字
-            Vec2 pos = Cursor::Pos() - board.mPos;  // カーソル座標にピクセルボード位置を適応
-            pos /= scale;                           // 描画スケールを適応
-            s3d::Point point(pos.asPoint());        // イメージの添え字に変換
-
-            // 有効な添え字ならレンダリング
-            if (point.x >= 0 && point.x < board.mImg.width() &&
-                point.y >= 0 && point.y < board.mImg.height()) {
-                if (isCirclePen) {
+        if (MouseL.pressed() &&
+            Cursor::Pos().x < guiAreaLeft) {
+            // カーソル座標をイメージ座標に変換
+            Point pos = board.toImagePos(Cursor::Pos());
+            // 有効な座標なら
+            if (board.checkRange(pos)) {
+                if (isCirclePen)
                     // mImgは通常のs3d::Image型と同じことが可能
-                    Circle(point, 2.0).overwrite(board.mImg, Palette::Darkorange);
-                }
+                    Circle(pos, 2.0).overwrite(board.mImg, Palette::Darkorange);
                 else
                     // クラスの公開メンバに直接書き込み
-                    board.mImg[point].set(s3d::Palette::Cyan);
+                    board.mImg[pos].set(s3d::Palette::Cyan);
             }
         }
         
@@ -65,13 +63,15 @@ void Main()
 
 
 
-        // GUI処理
+        // GUI関係
         renderState = { s3d::BlendState::Default, s3d::SamplerState::Default2D };
+
+        Rect(guiAreaLeft, 0, Window::Width() - guiAreaLeft, Window::Height()).draw(Palette::Dimgray);
 
         if (s3d::SimpleGUI::Button(U"Clear", Vec2(Window::Width() - 160, 20)))
             board.clear();
 
-        font(U"Pos: ", (int)board.mPos.x, U", ", (int)board.mPos.y).draw(Vec2(Window::Width() - 210, 70));
+        font(U"Pos: ", (int)board.mBoardPos.x, U", ", (int)board.mBoardPos.y).draw(Vec2(Window::Width() - 210, 70));
 
         double w = width, h = height;  // スライダー用に型を変換
         font(U"Width: ", width).draw(Vec2(Window::Width() - 210, 110));
