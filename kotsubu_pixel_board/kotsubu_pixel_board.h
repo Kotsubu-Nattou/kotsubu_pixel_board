@@ -34,17 +34,10 @@ KotsubuPixelBoard board(32, 24, 10.0);         // 32x24ドット、ズーム率1
 
 class KotsubuPixelBoard
 {
-    // 【内部フィールド】
-    double              mScale;
-    s3d::Image          mBlankImg;
-    s3d::DynamicTexture mTex;
-
-
-
 public:
     // 【公開フィールド】
     s3d::Vec2  mBoardPos;  // ピクセルボードの左上位置
-    s3d::Image mImg;       // 描画用イメージ。これに直接.set()などで書き込んで.draw()
+    s3d::Image mImg;       // 描画用イメージ。これに直接.set()などで書き込んで.draw()する
     bool       mVisible;   // 表示非表示の切り替え
 
 
@@ -162,5 +155,89 @@ public:
     bool checkRange(s3d::Vector2D<int> imagePos)
     {
         return checkRange(imagePos.asPoint());
+    }
+
+
+
+    // 【メソッド】点をレンダリング
+    void renderDot(s3d::Point pos, s3d::ColorF col)
+    {
+        renderDotBlended(pos, col, mFuncBlender_no);
+    }
+
+
+
+    // 【メソッド】点をレンダリング（加算合成）
+    void renderDot_add(s3d::Point pos, s3d::ColorF col)
+    {
+        renderDotBlended(pos, col, mFuncBlender_add);
+    }
+
+
+
+    // 【メソッド】点をレンダリング（加算合成2）
+    void renderDot_add2(s3d::Point pos, s3d::ColorF col)
+    {
+        renderDotBlended(pos, col, mFuncBlender_add2);
+    }
+
+
+
+
+
+private:
+    // 【内部関数オブジェクト】ブレンド種類別の関数（1ドット分）
+    static struct FuncBlender_no {
+        void operator()(s3d::Image& img, s3d::Point pos, s3d::ColorF col)
+        {
+            img[pos].set(col);  // 色をセット
+        }
+    };
+
+
+
+    static struct FuncBlender_add {
+        void operator()(s3d::Image& img, s3d::Point pos, s3d::ColorF col)
+        {
+            s3d::ColorF src = img[pos];                 // 現時点の色をスポイト
+            s3d::ColorF dst = {  src.r + col.r * col.a, // 塗りたい色と合成
+                                 src.g + col.g * col.a,
+                                 src.b + col.b * col.a,
+                                (src.a + col.a) * 0.5  };
+            img[pos].set(dst);                          // 混ぜた色をセット
+        }
+    };
+
+
+
+    static struct FuncBlender_add2 {
+        void operator()(s3d::Image& img, s3d::Point pos, s3d::ColorF col)
+        {
+            s3d::ColorF src = img[pos];
+            s3d::ColorF dst = { src.r + col.r * col.a,
+                                src.g + col.g * col.a,
+                                src.b + col.b * col.a,
+                                src.a + col.a };       // 本来は違うが見栄えがよい（キラキラする）
+            img[pos].set(dst);
+        }
+    };
+
+
+
+    // 【内部フィールド】
+    double              mScale;
+    s3d::Image          mBlankImg;
+    s3d::DynamicTexture mTex;
+    FuncBlender_no      mFuncBlender_no;
+    FuncBlender_add     mFuncBlender_add;
+    FuncBlender_add2    mFuncBlender_add2;
+
+
+
+    // 【内部メソッド】指定したブレンド方法で「点」をレンダリング
+    template<class T>
+    void renderDotBlended(s3d::Point pos, s3d::ColorF col, T& funcBrender)
+    {
+        funcBrender(mImg, pos, col);
     }
 };
