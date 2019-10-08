@@ -16,7 +16,7 @@ void Main()
     KotsubuPixelBoard board(width, height, scale);
     Font font = Font(64, s3d::Typeface::Bold);
     Stopwatch time;
-    int max = 30000000;
+    int max = 100000000;
 
 
     while (System::Update())
@@ -25,15 +25,35 @@ void Main()
         ColorF col = { RandomColorF(), Random(1.0) };
 
 
+        // 【テストメモ】
+        // ◎条件: 800x600, max=100000000
+        //
+        // board.mImg[pos].set(col);
+        //      約4600ms
+        //
+        // board.renderDot(pos, col);
+        //      約4600ms （なぜか直代入と変わらなかった）
+        //      ・renderDotBlended()の引数にファンクタのインスタンスでは
+        //        無く、FuncBlender_no()を指定  ---  変わらない
+        //      ・ファンクタの内部を、mImgの参照を受け取って操作するものから
+        //        「色を受け取り混ぜて返す」ものにした  ---  約4800ms （少し遅くなった）
+        //        「上書き」の性質上、ファンクタ引数の「元の色」は無駄となる。
+        //        加算合成などであれば結果が異なる可能性あり
+        //
+        // board.renderDot_add2(pos, col);
+        //      約6800ms
+        //      ・ファンクタの内部を、mImgの参照を受け取って操作するものから
+        //        「色を受け取り混ぜて返す」ものにした  ---  変わらない
+        //
         time.restart();
         for (int i = 0; i < max; ++i) {
-            Point pos = { Random(799), Random(599) };
-            // 【テスト】
-            board.mImg[pos].set(col);
-            //board.renderDot(pos, col);
+            Point pos = board.randomPos();
+            // 【テストコード】
+            //board.mImg[pos].set(col);
+            board.renderDot(pos, col);
         }
         time.pause();
-
+        
 
         // ピクセルボードをドロー
         RenderStateBlock2D renderState(BlendState::Default, SamplerState::ClampNearest);

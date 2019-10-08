@@ -159,10 +159,21 @@ public:
 
 
 
+    // 【メソッド】ランダム座標を返す（イメージの範囲内）
+    s3d::Point randomPos()
+    {
+        // Random関数は重いため、「Rnd(横),Rnd(縦)」とするより高速
+        int id = s3d::Random(mImg.num_pixels() - 1);
+        return { id % mImg.width(),
+                 id / mImg.width() };
+    }
+
+
+
     // 【メソッド】点をレンダリング
     void renderDot(s3d::Point pos, s3d::ColorF col)
     {
-        renderDotBlended(pos, col, mFuncBlender_no);
+        renderDotBlended(pos, col, FuncBlender_none());
     }
 
 
@@ -170,7 +181,7 @@ public:
     // 【メソッド】点をレンダリング（加算合成）
     void renderDot_add(s3d::Point pos, s3d::ColorF col)
     {
-        renderDotBlended(pos, col, mFuncBlender_add);
+        renderDotBlended(pos, col, FuncBlender_add());
     }
 
 
@@ -178,7 +189,7 @@ public:
     // 【メソッド】点をレンダリング（加算合成2）
     void renderDot_add2(s3d::Point pos, s3d::ColorF col)
     {
-        renderDotBlended(pos, col, mFuncBlender_add2);
+        renderDotBlended(pos, col, FuncBlender_add2());
     }
 
 
@@ -186,8 +197,8 @@ public:
 
 
 private:
-    // 【内部関数オブジェクト】ブレンド種類別の関数（1ドット分）
-    static struct FuncBlender_no {
+    // 【内部関数オブジェクト】ブレンド種類別、イメージの1点を書き変える処理群
+    static struct FuncBlender_none {
         void operator()(s3d::Image& img, s3d::Point pos, s3d::ColorF col)
         {
             img[pos].set(col);  // 色をセット
@@ -228,9 +239,6 @@ private:
     double              mScale;
     s3d::Image          mBlankImg;
     s3d::DynamicTexture mTex;
-    FuncBlender_no      mFuncBlender_no;
-    FuncBlender_add     mFuncBlender_add;
-    FuncBlender_add2    mFuncBlender_add2;
 
 
 
