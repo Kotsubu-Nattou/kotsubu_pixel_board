@@ -3,7 +3,7 @@
 
 ・概要
 ドットのお絵かきボードを提供するクラス（OpenSiv3D専用）
-1つのボードにつき、1つの描画イメージを内包する。
+1つのインスタンスにつき、1つの描画用イメージを内包する構造。
 座標系       --- クライアント左上を原点とするボードの位置, ボード左上を原点とする描画イメージの座標
 レンダリング --- クラスの公開フィールド s3d::Image mImg に対して直接書き込む（高速化というか手抜き）
 明示的な解放は不要。
@@ -28,6 +28,7 @@ KotsubuPixelBoard board(32, 24, 10.0);         // 32x24ドット、ズーム率1
 **************************************************************************************************/
 
 #pragma once
+#include <functional>
 #include <Siv3D.hpp>
 
 
@@ -35,11 +36,16 @@ KotsubuPixelBoard board(32, 24, 10.0);         // 32x24ドット、ズーム率1
 class KotsubuPixelBoard
 {
 public:
+    // 【公開定数】ブレンドモード
+    static enum class EnumBlendMode { Default, Alpha, Add, Add2 };
+
+
     // 【公開フィールド】
     s3d::Vec2  mBoardPos;  // ピクセルボードの左上位置
     s3d::Image mImg;       // 描画用イメージ。これに直接.set()などで書き込んで.draw()する
     bool       mVisible;   // 表示非表示の切り替え
-
+    // 【テスト】
+    EnumBlendMode mBlendMode;
 
 
     // 【コンストラクタ】
@@ -50,7 +56,8 @@ public:
     {
         mVisible = true;
         setScale(scale);
-        setSize(width, height);
+        changeSize(width, height);
+        blendMode(EnumBlendMode::Default);
     }
 
 
@@ -72,10 +79,10 @@ public:
 
 
 
-    // 【セッタ】サイズ（ドット単位）
-    // 設定したサイズが以前のサイズから更新した場合、描画イメージはクリアされる。
-    // ＜注意＞ この関数は負荷が高く、連続的に異なるサイズを設定するとエラーすることがある
-    void setSize(size_t width, size_t height)
+    // 【メソッド】サイズを変更（単位はドット。高負荷）
+    // サイズが変わらない場合は何もしない。変わる場合は描画イメージはクリア
+    // ＜注意＞ 連続的に異なるサイズを設定すると、高負荷のためエラー落ちする
+    void changeSize(size_t width, size_t height)
     {
         static size_t oldWidth  = -1;
         static size_t oldHeight = -1;
@@ -170,26 +177,33 @@ public:
 
 
 
+    // 【メソッド】ブレンドモードを指定
+    void blendMode(KotsubuPixelBoard::EnumBlendMode blendMode)
+    {
+        switch (blendMode) {
+        case EnumBlendMode::Alpha:
+            break;
+
+        case EnumBlendMode::Add:
+            mFunctor = FuncBlender_add();     break;
+
+        case EnumBlendMode::Add2:
+            mFunctor = FuncBlender_add2();    break;
+
+        default:
+            mFunctor = FuncBlender_default(); break;
+        }
+
+        // 【テスト】
+        mBlendMode = blendMode;
+    }
+
+
+
     // 【メソッド】点をレンダリング
     void renderDot(s3d::Point pos, s3d::ColorF col)
     {
-        renderDotBlended(pos, col, FuncBlender_none());
-    }
-
-
-
-    // 【メソッド】点をレンダリング（加算合成）
-    void renderDot_add(s3d::Point pos, s3d::ColorF col)
-    {
-        renderDotBlended(pos, col, FuncBlender_add());
-    }
-
-
-
-    // 【メソッド】点をレンダリング（加算合成2）
-    void renderDot_add2(s3d::Point pos, s3d::ColorF col)
-    {
-        renderDotBlended(pos, col, FuncBlender_add2());
+        mFunctor(mImg, pos, col);
     }
 
 
@@ -198,7 +212,7 @@ public:
 
 private:
     // 【内部関数オブジェクト】ブレンド種類別、イメージの1点を書き変える処理群
-    static struct FuncBlender_none {
+    static struct FuncBlender_default {
         void operator()(s3d::Image& img, s3d::Point pos, s3d::ColorF col)
         {
             img[pos].set(col);  // 色をセット
@@ -236,16 +250,8 @@ private:
 
 
     // 【内部フィールド】
-    double              mScale;
-    s3d::Image          mBlankImg;
-    s3d::DynamicTexture mTex;
-
-
-
-    // 【内部メソッド】指定したブレンド方法で「点」をレンダリング
-    template<class T>
-    void renderDotBlended(s3d::Point pos, s3d::ColorF col, T& funcBrender)
-    {
-        funcBrender(mImg, pos, col);
-    }
+    double               mScale;
+    s3d::Image           mBlankImg;
+    s3d::DynamicTexture  mTex;
+    std::function<void(s3d::Image&, s3d::Point, s3d::ColorF)> mFunctor;
 };

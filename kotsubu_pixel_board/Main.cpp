@@ -21,12 +21,24 @@ void Main()
 
     while (System::Update())
     {
+        if (s3d::Key1.pressed())
+            board.blendMode(KotsubuPixelBoard::EnumBlendMode::Default);
+
+        if (s3d::Key2.pressed())
+            board.blendMode(KotsubuPixelBoard::EnumBlendMode::Alpha);
+
+        if (s3d::Key3.pressed())
+            board.blendMode(KotsubuPixelBoard::EnumBlendMode::Add);
+
+        if (s3d::Key4.pressed())
+            board.blendMode(KotsubuPixelBoard::EnumBlendMode::Add2);
+
         board.clear();
         ColorF col = { RandomColorF(), Random(1.0) };
 
 
         // 【テストメモ】
-        // ◎条件: 800x600, max=100000000
+        // ◎条件: Release, 最適化フル, 800x600, max=100000000
         //
         // board.mImg[pos].set(col);
         //      約4600ms
@@ -39,12 +51,20 @@ void Main()
         //        「色を受け取り混ぜて返す」ものにした  ---  約4800ms （少し遅くなった）
         //        「上書き」の性質上、ファンクタ引数の「元の色」は無駄となる。
         //        加算合成などであれば結果が異なる可能性あり
+        //      ・ファンクションラッパー版  ---  約4750ms
+        //      ・クラス版  ---  約4850ms
+        //        各関数は「インターフェースクラス」を継承する。その型のポインタで各関数の実態を指す構造。
+        //        試しに、無駄であるが std::function<インターフェースクラス> でやってみたが速度は変わらなかった。
+        //        よって、ファンクションラッパーが速いのではなく、クラスの構造がシンプルであるほど速い？
         //
         // board.renderDot_add2(pos, col);
         //      約6800ms
         //      ・ファンクタの内部を、mImgの参照を受け取って操作するものから
         //        「色を受け取り混ぜて返す」ものにした  ---  変わらない
         //
+        // 最終テスト:
+        // 上記は実践的ではなく、使用する関数が決め打ちのため、最適化が容易と思われる。
+        // これを、ブレンドモードメソッドを実装し、ユーザー切り替え出来るようにした  ---  約+500ms
         time.restart();
         for (int i = 0; i < max; ++i) {
             Point pos = board.randomPos();
@@ -58,7 +78,8 @@ void Main()
         // ピクセルボードをドロー
         RenderStateBlock2D renderState(BlendState::Default, SamplerState::ClampNearest);
         board.draw();
-        font(time.ms()).draw(Point(10, 0));
+        font(time.ms(), U" ms").draw(Point(10, 0));
+        font(U"BlendMode: ", (int)board.mBlendMode).draw(Point(10, 70));
     }
 }
 
