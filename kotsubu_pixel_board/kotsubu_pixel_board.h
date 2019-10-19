@@ -54,8 +54,9 @@ public:
     //  【公開】定数、フィールド、コンストラクタ、一般メソッド
     //
 
-    // 【公開定数】ブレンドモード
-    static enum class EnumBlendMode { Default, Alpha, Additive, AdditiveSoft, Multiple };
+    // 【公開定数】
+    static enum class EnumShape { Dot, Line, LineAA, LineFadein };  // レンダリング図形の種類（機能的な意味は無し。便宜上用意）
+    static enum class EnumBlendMode { Default, Alpha, Additive, AdditiveSoft, Multiple };  // ブレンドモード
 
     
     // 【公開フィールド】
@@ -70,6 +71,7 @@ public:
 
     KotsubuPixelBoard(size_t width, size_t height, double scale = 1.0)
     {
+        std::srand((unsigned int)s3d::Time::GetSecSinceEpoch());
         mVisible = true;
         setScale(scale);
         changeSize(width, height);
@@ -152,7 +154,7 @@ public:
     // 【メソッド】クライアント座標をイメージ座標に変換
     // カーソル座標などから、スクロール位置やズーム率を考慮したイメージ座標に変換。
     // イメージ配列の添え字として利用できる（範囲チェック等は行わないので慎重に）
-    s3d::Point toImagePos(s3d::Point clientPos)
+    s3d::Point toImagePos(const s3d::Point& clientPos)
     {
         return ((clientPos - mBoardPos) / mScale).asPoint();
     }
@@ -161,7 +163,7 @@ public:
 
     // 【メソッド】イメージ座標をクライアント座標に変換
     // イメージ座標から、スクロール位置やズーム率を考慮したクライアント座標に変換
-    s3d::Point toClientPos(s3d::Point imagePos)
+    s3d::Point toClientPos(const s3d::Point& imagePos)
     {
         return (imagePos * mScale + mBoardPos).asPoint();
     }
@@ -183,12 +185,11 @@ public:
 
 
     // 【メソッド】ランダム座標を返す（イメージの範囲内）
+    // s3d::Randomは高機能＆高品質なため重く、単純なランダムであればこちらを推奨
     s3d::Point randomPos()
     {
-        // Random関数は重いため、「Rnd(横),Rnd(縦)」とするより高速
-        int id = s3d::Random(mImg.num_pixels() - 1);
-        return { id % mImg.width(),
-                 id / mImg.width() };
+        // s3d::Random(総ピクセル数-1)から計算するより、std::randを2つ使った方が速い（randの最大値は32767）
+        return { std::rand() % mImg.width(), std::rand() % mImg.height() };
     }
 
 
@@ -222,7 +223,7 @@ public:
     //
 
     // 【メソッド】点をレンダリング
-    void renderDot(s3d::Point pos, s3d::ColorF col)
+    void renderDot(const s3d::Point& pos, const s3d::ColorF& col)
     {
         mFunctor(mImg, pos, col);
     }
@@ -230,7 +231,7 @@ public:
 
 
     // 【メソッド】線分をレンダリング
-    void renderLine(s3d::Point startPos, s3d::Point endPos, s3d::ColorF col)
+    void renderLine(s3d::Point startPos, s3d::Point endPos, const s3d::ColorF& col)
     {   
         // ◎ブレゼンハムアルゴリズム
         // 終点を初期位置として始める
@@ -296,7 +297,8 @@ public:
 
 
     // 【メソッド】線分をレンダリング（疑似アンチエイリアシング付き）
-    void renderLineAA(s3d::Point startPos, s3d::Point endPos, s3d::ColorF col, double aaColorRate = 0.5)
+    void renderLineAA(s3d::Point startPos, s3d::Point endPos, const s3d::ColorF& col,
+                      double aaColorRate = 0.5)
     {
         // 終点を初期位置として始める
         s3d::Point now = endPos;
@@ -513,7 +515,7 @@ private:
 
     // 【内部関数オブジェクト】ブレンド種類別、イメージの1点を書き変える処理群
     static struct FuncBlender_default {
-        void operator()(s3d::Image& img, s3d::Point pos, s3d::ColorF col)
+        void operator()(s3d::Image& img, const s3d::Point& pos, const s3d::ColorF& col)
         {
             img[pos].set(col);  // 色をセット
         }
@@ -522,57 +524,54 @@ private:
 
 
     static struct FuncBlender_alpha {
-        void operator()(s3d::Image& img, s3d::Point pos, s3d::ColorF col)
+        void operator()(s3d::Image& img, const s3d::Point& pos, const s3d::ColorF& col)
         {
-            s3d::ColorF src = img[pos];                        // 現時点の色をスポイト
-            double alpha = 1.0 - col.a;
-            s3d::ColorF dst = { src.r * alpha + col.r * col.a, // 塗りたい色と合成
-                                src.g * alpha + col.g * col.a,
-                                src.b * alpha + col.b * col.a,
-                                src.a * alpha + col.a };
-            img[pos].set(dst);                                 // 混ぜた色をセット
+            // 背景の色をスポイト
+            s3d::ColorF base = img[pos];
+
+            // 塗る色と合成
+            double revColA = 1.0 - col.a;
+            s3d::ColorF mix  = { base * revColA + col * col.a,  // RGB成分
+                                 base.a * revColA + col.a };    // アルファ成分
+
+            // 混ぜた色をセット
+            img[pos].set(mix);
         }
     };
 
 
 
     static struct FuncBlender_additive {
-        void operator()(s3d::Image& img, s3d::Point pos, s3d::ColorF col)
+        void operator()(s3d::Image& img, const s3d::Point& pos, const s3d::ColorF& col)
         {
-            s3d::ColorF src = img[pos];
-            s3d::ColorF dst = { src.r + col.r * col.a,
-                                src.g + col.g * col.a,
-                                src.b + col.b * col.a,
-                                src.a + col.a };
-            img[pos].set(dst);
+            s3d::ColorF base = img[pos];
+            s3d::ColorF mix  = { base + col * col.a,
+                                 base.a + col.a };
+            img[pos].set(mix);
         }
     };
 
 
 
     static struct FuncBlender_additiveSoft {
-        void operator()(s3d::Image& img, s3d::Point pos, s3d::ColorF col)
+        void operator()(s3d::Image& img, const s3d::Point& pos, const s3d::ColorF& col)
         {
-            s3d::ColorF src = img[pos];
-            s3d::ColorF dst = { src.r + col.r * col.a,
-                                src.g + col.g * col.a,
-                                src.b + col.b * col.a,
-                               (src.a + col.a) * 0.5 };  // 平均をとってみた
-            img[pos].set(dst);
+            s3d::ColorF base = img[pos];
+            s3d::ColorF mix  = { base + col * col.a,
+                                (base.a + col.a) * 0.5 };  // 平均をとってみた
+            img[pos].set(mix);
         }
     };
 
 
 
     static struct FuncBlender_multiple {
-        void operator()(s3d::Image& img, s3d::Point pos, s3d::ColorF col)
+        void operator()(s3d::Image& img, const s3d::Point& pos, const s3d::ColorF& col)
         {
-            s3d::ColorF src = img[pos];
-            s3d::ColorF dst = { src.r * col.r,
-                                src.g * col.g,
-                                src.b * col.b,
-                                src.a * col.a };
-            img[pos].set(dst);
+            s3d::ColorF base = img[pos];
+            s3d::ColorF mix  = { base   * col,
+                                 base.a * col.a };
+            img[pos].set(mix);
         }
     };
 
@@ -582,5 +581,5 @@ private:
     double               mScale;
     s3d::Image           mBlankImg;
     s3d::DynamicTexture  mTex;
-    std::function<void(s3d::Image&, s3d::Point, s3d::ColorF)> mFunctor;
+    std::function<void(s3d::Image&, const s3d::Point&, const s3d::ColorF&)> mFunctor;
 };
