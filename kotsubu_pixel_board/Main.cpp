@@ -17,77 +17,32 @@ void Main()
     ColorF color = { 0.3, 1.0, 0.8, 0.7 };
     bool isScroll = false;
     Vec2 scrollStartPos;
-    bool isDragDrawing = false;
-    Point drawingStartPos;
     Font font = Font(24);
     int  guiAreaLeft = Window::Width() - 220;
     size_t shape     = (size_t)KotsubuPixelBoard::EnumShape::Dot;
     size_t blendMode = (size_t)KotsubuPixelBoard::EnumBlendMode::Default;
+    //std::vector<Point> vtx = { {10, 8}, {25, 5}, {30, 25}, {4, 20}, {10, 8} };
+    //std::vector<Point> vtx = { {0, 0}, {10, 0}, {3, 3} };
+    std::vector<Point> vtx;
 
 
 
     while (System::Update())
     {
-        // 右ボタンドラッグでスクロール
-        if (MouseR.down() && (Cursor::Pos().x < guiAreaLeft)) {
-            isScroll = true;
-            scrollStartPos = board.mBoardPos - Cursor::Pos();
+        if (MouseL.down() && (Cursor::Pos().x < guiAreaLeft))
+            vtx.emplace_back(board.toImagePos(Cursor::Pos()));
+
+
+        if (MouseR.down()) {
+            board.renderPolygon(vtx, color);
+            vtx.clear();
         }
 
-        if (MouseR.up())
-            isScroll = false;
+        //board.renderPolygon(vtx, color);
         
-        if (isScroll)
-            board.mBoardPos = scrollStartPos + Cursor::Pos();
 
-
-
-        // 左ボタン押下で点をレンダリング
-        if (MouseL.pressed() &&
-            Cursor::Pos().x < guiAreaLeft &&
-            shape == (size_t)KotsubuPixelBoard::EnumShape::Dot) {
-            static Point oldPos(-1, -1);
-            // カーソル座標をイメージ座標に変換
-            Point pos = board.toImagePos(Cursor::Pos());
-            // 座標更新、かつ有効範囲ならレンダリング
-            if (pos != oldPos &&
-                board.checkRange(pos)) {
-                board.renderDot(pos, color);
-                oldPos = pos;
-            }
-        }
-
-        // 左ボタンドラッグでライン類をレンダリング
-        if (MouseL.down() &&
-            Cursor::Pos().x < guiAreaLeft &&
-            shape != (size_t)KotsubuPixelBoard::EnumShape::Dot) {
-            // 作図の準備
-            isDragDrawing = true;
-            drawingStartPos = board.toImagePos(Cursor::Pos());
-        }
-
-        if (MouseL.up() &&
-            isDragDrawing) {
-            Point pos = board.toImagePos(Cursor::Pos());
-            // 有効範囲ならレンダリング
-            if (board.checkRange(pos)) {
-                switch ((KotsubuPixelBoard::EnumShape)shape) {
-                case KotsubuPixelBoard::EnumShape::Line:
-                    board.renderLine(drawingStartPos, pos, color);       break;
-
-                case KotsubuPixelBoard::EnumShape::LineAA:
-                    board.renderLineAA(drawingStartPos, pos, color);     break;
-
-                case KotsubuPixelBoard::EnumShape::LineFadein:
-                    board.renderLineFadein(drawingStartPos, pos, color); break;
-                }
-            }
-            isDragDrawing = false;
-        }
-        
-        
-        
         // ピクセルボードをドロー
+        for (auto r : vtx) board.renderDot(r, Palette::Darkorange);
         s3d::RenderStateBlock2D renderState(s3d::BlendState::Default, s3d::SamplerState::ClampNearest);
         board.draw();
 
@@ -111,6 +66,113 @@ void Main()
             board.blendMode((KotsubuPixelBoard::EnumBlendMode)blendMode);
     }
 }
+
+
+
+
+
+//void Main()
+//{
+//    size_t width = 400, height = 300;
+//    double scale = 15.0;
+//    KotsubuPixelBoard board(width, height, scale);
+//    ColorF color = { 0.3, 1.0, 0.8, 0.7 };
+//    bool isScroll = false;
+//    Vec2 scrollStartPos;
+//    bool isDragDrawing = false;
+//    Point drawingStartPos;
+//    Font font = Font(24);
+//    int  guiAreaLeft = Window::Width() - 220;
+//    size_t shape     = (size_t)KotsubuPixelBoard::EnumShape::Dot;
+//    size_t blendMode = (size_t)KotsubuPixelBoard::EnumBlendMode::Default;
+//
+//
+//
+//    while (System::Update())
+//    {
+//        // マウス右ドラッグでスクロール
+//        if (MouseR.down() && (Cursor::Pos().x < guiAreaLeft)) {
+//            isScroll = true;
+//            scrollStartPos = board.mBoardPos - Cursor::Pos();
+//        }
+//
+//        if (MouseR.up())
+//            isScroll = false;
+//        
+//        if (isScroll)
+//            board.mBoardPos = scrollStartPos + Cursor::Pos();
+//
+//
+//
+//        // 描画図形が点のとき
+//        if (shape == (size_t)KotsubuPixelBoard::EnumShape::Dot) {
+//            // マウス左押下
+//            if (MouseL.pressed() && (Cursor::Pos().x < guiAreaLeft)) {
+//                static Point oldPos(-1, -1);
+//                // カーソル座標をイメージ座標に変換
+//                Point pos = board.toImagePos(Cursor::Pos());
+//                // 座標更新、かつ有効範囲ならレンダリング
+//                if (pos != oldPos &&
+//                    board.checkRange(pos)) {
+//                    board.renderDot(pos, color);
+//                    oldPos = pos;
+//                }
+//            }
+//        }
+//        // 描画図形がライン類のとき
+//        else {
+//            // マウス左ドラッグ
+//            if (MouseL.down() && (Cursor::Pos().x < guiAreaLeft)) {
+//                isDragDrawing = true;
+//                drawingStartPos = board.toImagePos(Cursor::Pos());
+//            }
+//
+//            if (MouseL.up() && isDragDrawing) {
+//                // カーソル座標をイメージ座標に変換
+//                Point pos = board.toImagePos(Cursor::Pos());
+//                // 有効範囲ならレンダリング
+//                if (board.checkRange(pos)) {
+//                    switch ((KotsubuPixelBoard::EnumShape)shape) {
+//                    case KotsubuPixelBoard::EnumShape::Line:
+//                        board.renderLine(drawingStartPos, pos, color);       break;
+//
+//                    case KotsubuPixelBoard::EnumShape::LineAA:
+//                        board.renderLineAA(drawingStartPos, pos, color);     break;
+//
+//                    case KotsubuPixelBoard::EnumShape::LineFadein:
+//                        board.renderLineFadein(drawingStartPos, pos, color); break;
+//                    }
+//                }
+//                isDragDrawing = false;
+//            }
+//        }
+//        
+//        
+//        
+//        // ピクセルボードをドロー
+//        s3d::RenderStateBlock2D renderState(s3d::BlendState::Default, s3d::SamplerState::ClampNearest);
+//        board.draw();
+//
+//
+//
+//        // GUI関係
+//        renderState = { s3d::BlendState::Default, s3d::SamplerState::Default2D };
+//
+//        Rect(guiAreaLeft, 0, Window::Width() - guiAreaLeft, Window::Height()).draw(Palette::Dimgray);
+//
+//        if (SimpleGUI::Button(U"Clear", Vec2(Window::Width() - 160, 10)))
+//            board.clear();
+//
+//        font(U"Scale: ", scale).draw(Vec2(Window::Width() - 210, 50));
+//        if (SimpleGUI::Slider(scale, 0.0, 100.0, Vec2(Window::Width() - 210, 80), 200))
+//            board.setScale(scale);
+//
+//        SimpleGUI::RadioButtons(shape, { U"Dot", U"Line", U"Line AA", U"Line fadein" }, Vec2(Window::Width() - 210, 140));
+//
+//        if (SimpleGUI::RadioButtons(blendMode, { U"Default", U"Alpha", U"Add", U"AddSoft", U"Mul" }, Vec2(Window::Width() - 210, 320)))
+//            board.blendMode((KotsubuPixelBoard::EnumBlendMode)blendMode);
+//    }
+//}
 
 
 

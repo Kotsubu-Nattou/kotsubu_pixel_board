@@ -55,7 +55,7 @@ public:
     //
 
     // 【公開定数】
-    static enum class EnumShape { Dot, Line, LineAA, LineFadein };  // レンダリング図形の種類（機能的な意味は無し。便宜上用意）
+    static enum class EnumShape { Dot, Line, LineAA, LineFadein };  // レンダリング図形の種類（機能的な意味無し。便宜上用意）
     static enum class EnumBlendMode { Default, Alpha, Additive, AdditiveSoft, Multiple };  // ブレンドモード
 
     
@@ -252,7 +252,7 @@ public:
 
         if (dist.x >= dist.y) {
             // x基準
-            s3d::int32 e = dist.x;  // 誤差の初期値（四捨五入のために閾値/2とする）
+            int e = dist.x;  // 誤差の初期値（四捨五入のために閾値/2とする）
             for (;;) {
                 // 現在位置に点を描く
                 mFunctor(mImg, now, col);
@@ -278,7 +278,7 @@ public:
 
         else {
             // y基準
-            s3d::int32 e = dist.y;
+            int e = dist.y;
             for (;;) {
                 mFunctor(mImg, now, col);
 
@@ -323,7 +323,7 @@ public:
 
         if (dist.x >= dist.y) {
             // x基準
-            s3d::int32 e = dist.x;  // 誤差の初期値（四捨五入のために閾値/2とする）
+            int e = dist.x;  // 誤差の初期値（四捨五入のために閾値/2とする）
             for (;;) {
                 // 現在位置に点を描く
                 mFunctor(mImg, now, col);
@@ -354,7 +354,7 @@ public:
 
         else {
             // y基準
-            s3d::int32 e = dist.y;
+            int e = dist.y;
             for (;;) {
                 mFunctor(mImg, now, col);
 
@@ -375,7 +375,7 @@ public:
 
 
 
-    // 【関数】線分をレンダリング（始点からフェードインする。疑似アンチエイリアシング付き）
+    // 【メソッド】線分をレンダリング（始点からフェードインする。疑似アンチエイリアシング付き）
     void renderLineFadein(s3d::Point startPos, s3d::Point endPos, s3d::ColorF col,
                           double fadingSectionRate = 0.5, double aaColorRate = 0.5)
     {
@@ -405,9 +405,9 @@ public:
 
         if (dist.x >= dist.y) {
             // ◎◎ x基準
-            s3d::int32 e        = dist.x;  // 誤差の初期値（四捨五入のために閾値/2とする）
-            s3d::int32 decayLen = (endPos.x - startPos.x) * fadingSectionRate;  // フェード区間の長さ
-            s3d::int32 splitX   = startPos.x + decayLen;                        // 分割点x
+            int e        = dist.x;  // 誤差の初期値（四捨五入のために閾値/2とする）
+            int decayLen = (endPos.x - startPos.x) * fadingSectionRate;  // フェード区間の長さ
+            int splitX   = startPos.x + decayLen;                        // 分割点x
 
             // ◎ 終点xから分割点xまでループ（通常のAA付き線分の処理）
             for (;;) {
@@ -441,7 +441,7 @@ public:
             if (now.x == startPos.x) return;
 
             // ◎ 分割点xから始点xまでループ（ここがフェードする）
-            double alphaFadeVol = col.a / (1 + std::abs(decayLen));  // アルファのフェード量
+            double alphaFadeVol = col.a / (std::abs(decayLen) + 1);  // アルファのフェード量
             for (;;) {
                 // 初回の重複描画を避けるためフローを変更
                 now.x += step.x;
@@ -463,9 +463,9 @@ public:
 
         else {
             // ◎◎ y基準
-            s3d::int32 e        = dist.y;
-            s3d::int32 decayLen = (endPos.y - startPos.y) * fadingSectionRate;
-            s3d::int32 splitY   = startPos.y + decayLen;
+            int e        = dist.y;
+            int decayLen = (endPos.y - startPos.y) * fadingSectionRate;
+            int splitY   = startPos.y + decayLen;
 
             for (;;) {
                 mFunctor(mImg, now, col);
@@ -483,7 +483,7 @@ public:
             }
             if (now.y == startPos.y) return;
         
-            double alphaFadeVol = col.a / (1 + std::abs(decayLen));
+            double alphaFadeVol = col.a / (std::abs(decayLen) + 1);
             for (;;) {
                 now.y += step.y;
                 e += dist2.x;
@@ -505,19 +505,55 @@ public:
 
 
 
+    // 【メソッド】多角形をレンダリング
+    // ＜引数＞ vertices --- 多角形を構成する頂点を格納した配列。vector<Point>
+    void renderPolygon(std::vector<s3d::Point>& vertices, s3d::ColorF col)
+    {
+        // 頂点のチェック
+        if (vertices.size() < 3) return;
+        if (vertices.back() != vertices.front())
+            vertices.emplace_back(vertices.front());
+
+        // 変数等の準備
+        int top = INT32_MAX, bottom = INT32_MIN;
+        for (auto& vtx : vertices) {
+            if (vtx.y < top)    top    = vtx.y;
+            if (vtx.y > bottom) bottom = vtx.y;
+        }
+        std::vector<std::vector<int>> rows(bottom + 1);
+
+
+        // 左右のX座標を収めた「行情報」を作る
+        for (int i = 0, edgeQty = vertices.size() - 1; i < edgeQty; ++i) {
+            makeRows(rows, vertices[i], vertices[i + 1]);
+        }
+
+
+        // ラスタ処理
+        for (int y = top; y <= bottom ; ++y) {
+            int x1 = rows[y].front();
+            int x2 = rows[y].back();
+            // 一行分の点をレンダリング
+            for (int x = x1; x <= x2; ++x)
+                mFunctor(mImg, { x, y }, col);
+        }
+    }
+
+
+
 
 
 private:
     ////////////////////////////////////////////////////////////////////////////////////////////////////////
     //
-    //  【内部】レンダリング用の関数オブジェクト、フィールド
+    //  【内部】レンダリング用の関数オブジェクト、内部関数、フィールド
     //
 
-    // 【内部関数オブジェクト】ブレンド種類別、イメージの1点を書き変える処理群
+    // 【内部関数オブジェクト】イメージの1点を書き変える処理群（ブレンドモード別）
     static struct FuncBlender_default {
         void operator()(s3d::Image& img, const s3d::Point& pos, const s3d::ColorF& col)
         {
-            img[pos].set(col);  // 色をセット
+            img[pos].set(col);  // そのまま上書き
         }
     };
 
@@ -574,6 +610,91 @@ private:
             img[pos].set(mix);
         }
     };
+
+
+
+    // 【内部関数】ラスタ処理用。左右のX座標を収めた「行情報」を作る
+    void makeRows(std::vector<std::vector<int>>& rows, s3d::Point startPos, s3d::Point endPos)
+    {   
+        // 終点を初期位置として始める
+        s3d::Point now = endPos;
+        // xとyそれぞれの、距離（絶対値）と進むべき方向（正負）を求める
+        s3d::Point dist, step;
+        if (endPos.x >= startPos.x)
+        { dist.x = endPos.x - startPos.x; step.x = -1; }
+        else
+        { dist.x = startPos.x - endPos.x; step.x = 1; }
+        if (endPos.y >= startPos.y)
+        { dist.y = endPos.y - startPos.y; step.y = -1; }
+        else
+        { dist.y = startPos.y - endPos.y; step.y = 1; }
+        // 誤差の判定時に四捨五入する、かつ整数で扱うため、関連パラメータを2倍する
+        s3d::Point dist2 = dist * 2;
+
+
+        if (dist.x >= dist.y) {
+            // ◎ x基準
+            int e = dist.x;  // 誤差の初期値（四捨五入のために閾値/2とする）
+            addRowX(rows[now.y], now.x);  // 行情報にX座標を追加
+            for (;;) {
+                // 始点なら終了
+                if (now.x == startPos.x) break;
+                // xを「1ドット」移動
+                now.x += step.x;
+                // 誤差を蓄積
+                e += dist2.y;
+                // 誤差がたまったら
+                if (e >= dist2.x) {
+                    // yを「1ドット」移動
+                    now.y += step.y;
+                    // 行情報にX座標を追加
+                    addRowX(rows[now.y], now.x);
+                    // 誤差をリセット。超過分を残すのがミソ
+                    e -= dist2.x;
+                }
+            }
+        }
+
+        else {
+            // ◎ y基準
+            int e = dist.y;
+            for (;;) {
+                addRowX(rows[now.y], now.x);
+                if (now.y == startPos.y) break;
+                now.y += step.y;
+                e += dist2.x;
+                if (e >= dist2.y) {
+                    now.x += step.x;
+                    e -= dist2.y;
+                }
+            }
+        }
+    }
+
+
+
+    // 【内部関数】ラスタ処理用。「行情報」にX座標を追加（2個のX座標がソートされて並ぶ）
+    void addRowX(std::vector<int>& row, int x)
+    {
+        if (row.empty())
+            row.emplace_back(x);
+        else {
+            if (row.size() == 1) {
+                if (x < row[0]) {
+                    row.emplace_back(row[0]);
+                    row[0] = x;
+                }
+                else
+                    row.emplace_back(x);
+            }
+            else {
+                if (x < row[0])
+                    row[0] = x;
+                else if (x > row[1])
+                    row[1] = x;
+            }
+        }
+    }
 
 
 
