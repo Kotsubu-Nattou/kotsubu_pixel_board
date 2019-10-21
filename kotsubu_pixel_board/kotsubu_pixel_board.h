@@ -1,43 +1,49 @@
 /**************************************************************************************************
-【ヘッダオンリークラス】kotsubu_pixel_board v1.3
+【ヘッダオンリークラス】kotsubu_pixel_board v1.4
 
 ◎概要
-2Dドットのお絵かきボードを提供するクラス（OpenSiv3D専用）
-1つのインスタンスにつき、1つのイメージを内包する構造。
+ドット感あふれる「お絵かきボード」を提供するクラス（OpenSiv3D専用）
+1つのインスタンスにつき、1つのイメージを内包した構造。
+実用的な速度で、イメージのクリアや「描き変え」に対応。
+これによって、1フレームごとのアニメーションなどにも利用できる。
+複数のインスタンスを重ねて利用すれば、多重スクロールなども表現できる。
 明示的な解放は不要。
 
 ・座標系
   1. クライアントの左上を原点とした「ボードの位置」 --- s3d::Vec2型
   2. ボードの左上を原点とした「イメージの座標」     --- s3d::Point型
-  また、カーソル座標をイメージ座標に変換するメソッド等も用意。
 
 ・レンダリング
   図形の種類別にrender〇〇メソッドを用意。事前にブレンドモードを指定してレンダリングを行う。
-  また、イメージ（s3d::Image mImg）は「公開」しており、通常のイメージに対する操作が可能。
+  なるべく速度優先のため、レンダリングメソッドで座標の範囲チェックは行わないので注意。
+  また、イメージ（s3d::Image mImg）は「公開」しており、通常のs3d::Imageと同等の操作が可能。
+  最後にdrawメソッドの実行で、次フレームにて表示される。
 
 
 ◎使い方
 #include <Siv3D.hpp>
 #include "kotsubu_pixel_board.h"
-KotsubuPixelBoard board(32, 24, 10.0);      // 32x24ドット、ズーム率10のお絵かきボードを生成
+KotsubuPixelBoard board(32, 24, 10.0);                // 32x24ドット、ズーム率10のお絵かきボードを生成
+std::vector<Point> vtx = { {0, 0}, {8, 4}, {0, 8} };  // レンダリングする多角形の定義
 
 メインループ
-    board.clear();                          // ボードを白紙にする
-    int w = board.mImg.width();             // イメージの幅を取得（通常のs3d::Imageと同様の操作が可能）
+    board.clear();                          // イメージをクリア
+    int w = board.mImg.width();             // イメージの幅を取得（通常のs3d::Imageと同等の操作が可能）
     board.blendMode(KotsubuPixelBoard::EnumBlendMode::Alpha); // ブレンドモードを指定（enum定数を利用）
 
     s3d::Point pos = board.toImagePos(Cursor::Pos());         // カーソル座標をイメージ座標に変換
     if (board.checkRange(pos)) {                              // イメージの座標範囲内かどうかをチェック
         board.renderDot(pos, Palette::Blue);                  // 点をレンダリング（座標範囲に注意）
+        board.renderPolygon(vtx, pos, Palette::Cyan);         // 多角形をレンダリング
         board.mImg[pos].set(Palette::Green);                  // mImgに直接書き込むことも可能
         Circle(pos, 3.0).overwrite(board.mImg, Palette::Red); // 他のs3dメソッドとの組み合わせ
     }
-    board.mBoardPos = { 0.0, 5.0 };         // ボードをスクロール
-    board.setScale(2.0);                    // ズーム
-    board.draw();                           // ドロー
+    board.mBoardPos = { 0.0, 5.0 };           // ボードをスクロール
+    board.setScale(2.0);                      // ズーム
+    board.draw();                             // ドロー
 
-    board.changeSize(48, 36);               // ドットサイズを変更（ボードは白紙になる。高負荷注意）
-    board.mVisible = false;                 // 非表示にする
+    board.changeSize(48, 36);                 // サイズを変更（ボードは白紙になる。高負荷注意）
+    board.mVisible = false;                   // 非表示にする
 **************************************************************************************************/
 
 #pragma once
@@ -55,7 +61,7 @@ public:
     //
 
     // 【公開定数】
-    static enum class EnumShape { Dot, Line, LineAA, LineFadein };  // レンダリング図形の種類（機能的な意味無し。便宜上用意）
+    static enum class EnumShape { Dot, Line, LineAA, LineFadein, Polygon };  // レンダリング図形の種類（機能的な意味無し。便宜上用意）
     static enum class EnumBlendMode { Default, Alpha, Additive, AdditiveSoft, Multiple };  // ブレンドモード
 
     
@@ -126,9 +132,9 @@ public:
 
 
 
-    // 【メソッド】イメージを白紙に戻す
-    // 現在のイメージサイズに応じた高速なクリア。また、似たような用途として
-    // s3d::Imageのclear()があるが内容が破棄されてしまう。fill()は負荷が高い
+    // 【メソッド】イメージをクリア
+    // 現在のイメージサイズに応じた高速なクリアを行う。似たような用途として
+    // s3d::Imageのclear()があるがイメージ自体が破棄される。fill()は負荷が高い
     void clear()
     {
         // 描画用イメージをブランクイメージで置き換える（この方法が高速）
@@ -214,6 +220,18 @@ public:
             mFunctor = FuncBlender_default();      break;
         }
     }
+
+
+
+    // 【メソッド】指定座標の色を返す
+    // 具体的には、イメージの1点の参照を返す（s3d::Color&型）
+    // これを、ColorF等で受け取れば単純な色のコピー。ColorF&で受け取ればその座標にアタッチできる
+    s3d::Color& spoit(const s3d::Point& pos)
+    {
+        return mImg[pos];
+    }
+
+
 
 
 
@@ -441,7 +459,7 @@ public:
             if (now.x == startPos.x) return;
 
             // ◎ 分割点xから始点xまでループ（ここがフェードする）
-            double alphaFadeVol = col.a / (std::abs(decayLen) + 1);  // アルファのフェード量
+            double alphaFadeVol = col.a / (1 + std::abs(decayLen));  // アルファのフェード量
             for (;;) {
                 // 初回の重複描画を避けるためフローを変更
                 now.x += step.x;
@@ -483,7 +501,7 @@ public:
             }
             if (now.y == startPos.y) return;
         
-            double alphaFadeVol = col.a / (std::abs(decayLen) + 1);
+            double alphaFadeVol = col.a / (1 + std::abs(decayLen));
             for (;;) {
                 now.y += step.y;
                 e += dist2.x;
@@ -505,36 +523,68 @@ public:
 
 
 
-    // 【メソッド】多角形をレンダリング
+    // 【メソッド】多角形をレンダリング（3頂点以上）
     // ＜引数＞ vertices --- 多角形を構成する頂点を格納した配列。vector<Point>
-    void renderPolygon(std::vector<s3d::Point>& vertices, s3d::ColorF col)
+    // 図形は閉じていても無くても可。頂点の右回り左回りはどちらでも可。
+    // このメソッドのみ座標の範囲チェック等を行うため安全設計
+    void renderPolygon(std::vector<s3d::Point> vertices, s3d::Point pos, s3d::ColorF col)
     {
-        // 頂点のチェック
+        // 頂点数のチェック
         if (vertices.size() < 3) return;
+
+        // 変数等の準備
+        int modelLeft = INT32_MAX, modelRight = INT32_MIN, modelTop = INT32_MAX, modelBottom = INT32_MIN;
+        for (auto& vtx : vertices) {
+            if (vtx.x < modelLeft)        modelLeft   = vtx.x;
+            else if (vtx.x > modelRight)  modelRight  = vtx.x;
+            if (vtx.y < modelTop)         modelTop    = vtx.y;
+            else if (vtx.y > modelBottom) modelBottom = vtx.y;
+        }
+        if ((pos.x + modelLeft >= mImg.width()) || (pos.x + modelRight < 0)) return;
+
+        int renderStartY = pos.y + modelTop;
+        if (renderStartY < 0) renderStartY = 0;
+        else if (renderStartY >= mImg.height()) return;
+
+        int renderEndY = pos.y + modelBottom;
+        if (renderEndY < 0) return;
+        else if (renderEndY >= mImg.height()) renderEndY = mImg.height() - 1;
+
+        int topOverY = 0;
+        if (modelTop < 0) topOverY = -modelTop;
+
+        // 1行に左右のモデルX座標を収める構造の「ラスタ配列」を定義。添え字がモデルY（0基準）を表す
+        std::vector<std::vector<int>> rasters(topOverY + modelBottom + 1);
+
+
+        // モデル上端が「はみ出している」なら底上げ
+        if (topOverY) {
+            for (auto& vtx : vertices)
+                vtx.y += topOverY;
+        }
+
+        // 図形を閉じる
         if (vertices.back() != vertices.front())
             vertices.emplace_back(vertices.front());
 
-        // 変数等の準備
-        int top = INT32_MAX, bottom = INT32_MIN;
-        for (auto& vtx : vertices) {
-            if (vtx.y < top)    top    = vtx.y;
-            if (vtx.y > bottom) bottom = vtx.y;
-        }
-        std::vector<std::vector<int>> rows(bottom + 1);
 
-
-        // 左右のX座標を収めた「行情報」を作る
-        for (int i = 0, edgeQty = vertices.size() - 1; i < edgeQty; ++i) {
-            makeRows(rows, vertices[i], vertices[i + 1]);
-        }
+        // 「ラスタ配列」にエッジを書き込む
+        for (int i = 0, edgeQty = vertices.size() - 1; i < edgeQty; ++i)
+            writeEdge(rasters, vertices[i], vertices[i + 1]);
 
 
         // ラスタ処理
-        for (int y = top; y <= bottom ; ++y) {
-            int x1 = rows[y].front();
-            int x2 = rows[y].back();
-            // 一行分の点をレンダリング
-            for (int x = x1; x <= x2; ++x)
+        int imgRight = mImg.width() - 1;
+        int fixIndex = pos.y - topOverY;
+        for (int y = renderStartY; y <= renderEndY ; ++y) {
+            int renderStartX  = pos.x + rasters[y - fixIndex].front();
+            if (renderStartX < 0) renderStartX = 0;
+
+            int renderEndX = pos.x + rasters[y - fixIndex].back();
+            if (renderEndX > imgRight) renderEndX = imgRight;
+
+            // 1行分の点をレンダリング
+            for (int x = renderStartX; x <= renderEndX; ++x)
                 mFunctor(mImg, { x, y }, col);
         }
     }
@@ -613,9 +663,10 @@ private:
 
 
 
-    // 【内部関数】ラスタ処理用。左右のX座標を収めた「行情報」を作る
-    void makeRows(std::vector<std::vector<int>>& rows, s3d::Point startPos, s3d::Point endPos)
+    // 【内部関数】エッジを「ラスタ配列」に書き込む
+    void writeEdge(std::vector<std::vector<int>>& rasters, s3d::Point startPos, s3d::Point endPos)
     {   
+        // ◎ブレゼンハムアルゴリズム
         // 終点を初期位置として始める
         s3d::Point now = endPos;
         // xとyそれぞれの、距離（絶対値）と進むべき方向（正負）を求める
@@ -635,7 +686,7 @@ private:
         if (dist.x >= dist.y) {
             // ◎ x基準
             int e = dist.x;  // 誤差の初期値（四捨五入のために閾値/2とする）
-            addRowX(rows[now.y], now.x);  // 行情報にX座標を追加
+            pushEdgeX(rasters[now.y], now.x);  // 現在のラスタにX座標を追加
             for (;;) {
                 // 始点なら終了
                 if (now.x == startPos.x) break;
@@ -647,8 +698,8 @@ private:
                 if (e >= dist2.x) {
                     // yを「1ドット」移動
                     now.y += step.y;
-                    // 行情報にX座標を追加
-                    addRowX(rows[now.y], now.x);
+                    // 現在のラスタにX座標を追加
+                    pushEdgeX(rasters[now.y], now.x);
                     // 誤差をリセット。超過分を残すのがミソ
                     e -= dist2.x;
                 }
@@ -659,7 +710,7 @@ private:
             // ◎ y基準
             int e = dist.y;
             for (;;) {
-                addRowX(rows[now.y], now.x);
+                pushEdgeX(rasters[now.y], now.x);
                 if (now.y == startPos.y) break;
                 now.y += step.y;
                 e += dist2.x;
@@ -673,25 +724,28 @@ private:
 
 
 
-    // 【内部関数】ラスタ処理用。「行情報」にX座標を追加（2個のX座標がソートされて並ぶ）
-    void addRowX(std::vector<int>& row, int x)
+    // 【内部関数】ラスタ1行にX座標を追加（最終的に2個のX座標が昇順で並ぶ）
+    void pushEdgeX(std::vector<int>& raster, int x)
     {
-        if (row.empty())
-            row.emplace_back(x);
+        static const int Left  = 0;
+        static const int Right = 1;
+
+        if (raster.empty())
+            raster.emplace_back(x);
         else {
-            if (row.size() == 1) {
-                if (x < row[0]) {
-                    row.emplace_back(row[0]);
-                    row[0] = x;
+            if (raster.size() == 1) {
+                if (x < raster[Left]) {
+                    raster.emplace_back(raster[Left]);
+                    raster[Left] = x;
                 }
                 else
-                    row.emplace_back(x);
+                    raster.emplace_back(x);
             }
             else {
-                if (x < row[0])
-                    row[0] = x;
-                else if (x > row[1])
-                    row[1] = x;
+                if (x < raster[Left])
+                    raster[Left] = x;
+                else if (x > raster[Right])
+                    raster[Right] = x;
             }
         }
     }
