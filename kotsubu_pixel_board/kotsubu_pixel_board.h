@@ -17,10 +17,10 @@
   図形の種類別にrender〇〇メソッドを用意。事前にブレンドモードを指定してレンダリングを行う。
   なるべく速度優先のため、レンダリングメソッドで座標の範囲チェックは行わないので注意。
   また、イメージ（s3d::Image mImg）は「公開」しており、通常のs3d::Imageと同等の操作が可能。
-  最後にdrawメソッドの実行で、次フレームにて表示される。
+  最後にdrawメソッドの実行で、次フレームにて表示。
 
 
-◎使い方
+◎使い方（Main.cppにて）
 #include <Siv3D.hpp>
 #include "kotsubu_pixel_board.h"
 KotsubuPixelBoard board(32, 24, 10.0);                // 32x24ドット、ズーム率10のお絵かきボードを生成
@@ -31,19 +31,21 @@ std::vector<Point> vtx = { {0, 0}, {8, 4}, {0, 8} };  // レンダリングす�
     int w = board.mImg.width();             // イメージの幅を取得（通常のs3d::Imageと同等の操作が可能）
     board.blendMode(KotsubuPixelBoard::EnumBlendMode::Alpha); // ブレンドモードを指定（enum定数を利用）
 
-    s3d::Point pos = board.toImagePos(Cursor::Pos());         // カーソル座標をイメージ座標に変換
+    s3d::Point pos = board.toImagePos(s3d::Cursor::Pos());    // カーソル座標をイメージ座標に変換
     if (board.checkRange(pos)) {                              // イメージの座標範囲内かどうかをチェック
         board.renderDot(pos, Palette::Blue);                  // 点をレンダリング（座標範囲に注意）
         board.renderPolygon(vtx, pos, Palette::Cyan);         // 多角形をレンダリング
         board.mImg[pos].set(Palette::Green);                  // mImgに直接書き込むことも可能
         Circle(pos, 3.0).overwrite(board.mImg, Palette::Red); // 他のs3dメソッドとの組み合わせ
     }
-    board.mBoardPos = { 0.0, 5.0 };           // ボードをスクロール
-    board.setScale(2.0);                      // ズーム
-    board.draw();                             // ドロー
+    board.mBoardPos = { 0.0, 5.0 };                                         // ボードをスクロール
+    board.setBoardScale(2.0);                                               // ズーム
+    s3d::RenderStateBlock2D blendState(s3d::BlendState::Default);           // ボード自体の合成方法
+    s3d::RenderStateBlock2D samplerState(s3d::SamplerState::ClampNearest);  // ドット感を強調する
+    board.draw();                                                           // ドロー
 
-    board.changeSize(48, 36);                 // サイズを変更（ボードは白紙になる。高負荷注意）
-    board.mVisible = false;                   // 非表示にする
+    board.changeSize(48, 36);               // サイズを変更（ボードは白紙になる。高負荷注意）
+    board.mVisible = false;                 // 非表示にする
 **************************************************************************************************/
 
 #pragma once
@@ -59,7 +61,7 @@ public:
     //
     //  【公開】定数、フィールド、コンストラクタ、一般メソッド
     //
-
+    
     // 【公開定数】
     static enum class EnumShape { Dot, Line, LineAA, LineFadein, Polygon };  // レンダリング図形の種類（機能的な意味無し。便宜上用意）
     static enum class EnumBlendMode { Default, Alpha, Additive, AdditiveSoft, Multiple };  // ブレンドモード
@@ -72,39 +74,39 @@ public:
 
 
     // 【コンストラクタ】
-    KotsubuPixelBoard() : KotsubuPixelBoard(s3d::Window::Width(), s3d::Window::Height(), 1.0)
+    KotsubuPixelBoard() : KotsubuPixelBoard(1, 1)  // デフォルトは、最もミニマムな設定（縦横1ドット）
     {}
 
-    KotsubuPixelBoard(size_t width, size_t height, double scale = 1.0)
+    KotsubuPixelBoard(size_t width, size_t height, double boardScale = 1.0)
     {
         std::srand((unsigned int)s3d::Time::GetSecSinceEpoch());
         mVisible = true;
-        setScale(scale);
+        setBoardScale(boardScale);
         changeSize(width, height);
         blendMode(EnumBlendMode::Default);
     }
 
 
 
-    // 【セッタ】ズーム率
-    void setScale(double scale)
+    // 【セッタ】ピクセルボードの表示スケール
+    void setBoardScale(double boardScale)
     {
-        if (scale < 0.0) scale = 0.0;
-        mScale = scale;
+        if (boardScale < 0.0) boardScale = 0.0;
+        mBoardScale = boardScale;
     }
 
 
 
-    // 【ゲッタ】ズーム率
-    double getScale()
+    // 【ゲッタ】ピクセルボードの表示スケールを返す
+    double getBoardScale()
     {
-        return mScale;
+        return mBoardScale;
     }
 
 
 
-    // 【メソッド】イメージのサイズを変更（単位はドット。高負荷）
-    // サイズが変わらない場合は何もしない。変わる場合は描画イメージはクリアされる
+    // 【メソッド】イメージのサイズを変更（ドット単位。高負荷）
+    // 変化がなかった場合は何もしない。変化した場合は描画イメージはクリアされる
     // ＜注意＞ 連続的に異なるサイズを設定すると、高負荷のためエラー落ちする
     void changeSize(size_t width, size_t height)
     {
@@ -130,6 +132,30 @@ public:
         oldHeight = height;
     }
 
+    // 【メソッド】イメージのサイズを変更（指定サイズを1とする逆倍。高負荷）
+    // dotScale --- 最小1.0から。1で指定サイズそのまま、2で指定サイズの半分となる（このとき、
+    // setBoardScaleメソッドで、表示サイズを2倍（同値）することにより、
+    // 表示サイズを保ったままドットを拡大できる）
+    // 変化がなかった場合は何もしない。変化した場合は描画イメージはクリアされる
+    // ＜注意＞ 連続的に異なるサイズを設定すると、高負荷のためエラー落ちする
+    void changeSize(size_t width, size_t height, double dotScale)
+    {
+        if (dotScale < 1.0) dotScale = 1.0;
+        double rate = 1.0 / dotScale;
+        changeSize(width * rate, height * rate);
+    }
+
+    // 【メソッド】イメージのサイズを変更（現在のサイズを1とする逆倍。高負荷）
+    // dotScale --- 最小1.0から。1で変化なし、2でサイズが半分となる（このとき、
+    // setBoardScaleメソッドで、表示サイズを2倍（同値）することにより、
+    // 表示サイズを保ったままドットを拡大できる）
+    // 変化がなかった場合は何もしない。変化した場合は描画イメージはクリアされる
+    // ＜注意＞ 連続的に異なるサイズを設定すると、高負荷のためエラー落ちする
+    void changeSize(double dotScale)
+    {
+        changeSize(mImg.width(), mImg.height(), dotScale);
+    }
+
 
 
     // 【メソッド】イメージをクリア
@@ -151,7 +177,7 @@ public:
             mTex.fill(mImg);
 
             // 動的テクスチャをスケーリングしてドロー
-            mTex.scaled(mScale).draw(mBoardPos);
+            mTex.scaled(mBoardScale).draw(mBoardPos);
         }
     }
 
@@ -162,7 +188,7 @@ public:
     // イメージ配列の添え字として利用できる（範囲チェック等は行わないので慎重に）
     s3d::Point toImagePos(const s3d::Point& clientPos)
     {
-        return ((clientPos - mBoardPos) / mScale).asPoint();
+        return ((clientPos - mBoardPos) / mBoardScale).asPoint();
     }
 
 
@@ -171,7 +197,7 @@ public:
     // イメージ座標から、スクロール位置やズーム率を考慮したクライアント座標に変換
     s3d::Point toClientPos(const s3d::Point& imagePos)
     {
-        return (imagePos * mScale + mBoardPos).asPoint();
+        return (imagePos * mBoardScale + mBoardPos).asPoint();
     }
 
 
@@ -525,7 +551,8 @@ public:
 
     // 【メソッド】多角形をレンダリング（3頂点以上）
     // ＜引数＞ vertices --- 多角形を構成する頂点を格納した配列。vector<Point>
-    // 図形は閉じていても無くても可。頂点の右回り左回りはどちらでも可。
+    // 頂点の並び方や閉じているかは問わない。ただし、描かれる形状には下記クセがある。
+    // 図形の上端からY座標を1つずつ見て、そのYでの最も左のX座標と最も右のX座標を線で結んでゆく。
     // このメソッドのみ座標の範囲チェック等を行うため安全設計
     void renderPolygon(std::vector<s3d::Point> vertices, s3d::Point pos, s3d::ColorF col)
     {
@@ -672,13 +699,13 @@ private:
         // xとyそれぞれの、距離（絶対値）と進むべき方向（正負）を求める
         s3d::Point dist, step;
         if (endPos.x >= startPos.x)
-        { dist.x = endPos.x - startPos.x; step.x = -1; }
+            { dist.x = endPos.x - startPos.x; step.x = -1; }
         else
-        { dist.x = startPos.x - endPos.x; step.x = 1; }
+            { dist.x = startPos.x - endPos.x; step.x = 1; }
         if (endPos.y >= startPos.y)
-        { dist.y = endPos.y - startPos.y; step.y = -1; }
+            { dist.y = endPos.y - startPos.y; step.y = -1; }
         else
-        { dist.y = startPos.y - endPos.y; step.y = 1; }
+            { dist.y = startPos.y - endPos.y; step.y = 1; }
         // 誤差の判定時に四捨五入する、かつ整数で扱うため、関連パラメータを2倍する
         s3d::Point dist2 = dist * 2;
 
@@ -753,7 +780,7 @@ private:
 
 
     // 【内部フィールド】
-    double               mScale;
+    double               mBoardScale;
     s3d::Image           mBlankImg;
     s3d::DynamicTexture  mTex;
     std::function<void(s3d::Image&, const s3d::Point&, const s3d::ColorF&)> mFunctor;
