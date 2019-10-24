@@ -98,8 +98,6 @@ void Main()
         
         
         // ピクセルボードをドロー
-        s3d::RenderStateBlock2D blendState(s3d::BlendState::Default);           // ボード自体の合成方法
-        s3d::RenderStateBlock2D samplerState(s3d::SamplerState::ClampNearest);  // ドット感を強調する
         board.draw();
 
 
@@ -112,7 +110,7 @@ void Main()
 
         font(U"Scale: ", scale).draw(Vec2(Window::Width() - 210, 50));
         if (SimpleGUI::Slider(scale, 0.0, 100.0, Vec2(Window::Width() - 210, 80), 200))
-            board.setScale(scale);
+            board.setBoardScale(scale);
 
         SimpleGUI::RadioButtons(shape, { U"Dot", U"Line", U"Line AA", U"Line fadein", U"Polygon" }, Vec2(Window::Width() - 210, 140));
 

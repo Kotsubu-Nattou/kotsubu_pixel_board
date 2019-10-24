@@ -38,11 +38,10 @@ std::vector<Point> vtx = { {0, 0}, {8, 4}, {0, 8} };  // レンダリングす�
         board.mImg[pos].set(Palette::Green);                  // mImgに直接書き込むことも可能
         Circle(pos, 3.0).overwrite(board.mImg, Palette::Red); // 他のs3dメソッドとの組み合わせ
     }
-    board.mBoardPos = { 0.0, 5.0 };                                         // ボードをスクロール
-    board.setBoardScale(2.0);                                               // ズーム
-    s3d::RenderStateBlock2D blendState(s3d::BlendState::Default);           // ボード自体の合成方法
-    s3d::RenderStateBlock2D samplerState(s3d::SamplerState::ClampNearest);  // ドット感を強調する
-    board.draw();                                                           // ドロー
+    board.setBoardScale(2.0);                                    // ズーム
+    board.mBoardPos = { 0.0, 5.0 };                              // ボードをスクロール
+    board.mBoardSamplerState = s3d::SamplerState::ClampNearest;  // ドット感を強調する（デフォルト）
+    board.draw();                                                // ドロー
 
     board.changeSize(48, 36);               // サイズを変更（ボードは白紙になる。高負荷注意）
     board.mVisible = false;                 // 非表示にする
@@ -68,19 +67,22 @@ public:
 
     
     // 【公開フィールド】
-    s3d::Vec2  mBoardPos;  // ピクセルボードの左上位置
-    s3d::Image mImg;       // 描画用イメージ。直接操作が可能
-    bool       mVisible;   // 表示非表示の切り替え
+    s3d::Image        mImg;                // 描画用イメージ。直接操作が可能
+    s3d::Vec2         mBoardPos;           // ピクセルボードの左上位置
+    s3d::BlendState   mBoardBlendState;    // ボードのブレンドステート
+    s3d::SamplerState mBoardSamplerState;  // ボードのサンプラーステート
+    bool              mVisible;            // 表示非表示の切り替え
 
 
     // 【コンストラクタ】
     KotsubuPixelBoard() : KotsubuPixelBoard(1, 1)  // デフォルトは、最もミニマムな設定（縦横1ドット）
     {}
 
-    KotsubuPixelBoard(size_t width, size_t height, double boardScale = 1.0)
+    KotsubuPixelBoard(size_t width, size_t height, double boardScale = 1.0) :
+        mBoardBlendState(s3d::BlendState::Default), mBoardSamplerState(s3d::SamplerState::ClampNearest),
+        mVisible(true)
     {
         std::srand((unsigned int)s3d::Time::GetSecSinceEpoch());
-        mVisible = true;
         setBoardScale(boardScale);
         changeSize(width, height);
         blendMode(EnumBlendMode::Default);
@@ -173,6 +175,9 @@ public:
     void draw()
     {
         if (mVisible) {
+            // レンダーステート
+            s3d::RenderStateBlock2D state(mBoardBlendState, mBoardSamplerState);
+
             // 動的テクスチャを更新（同じ大きさでないと更新されない）
             mTex.fill(mImg);
 
@@ -226,7 +231,7 @@ public:
 
 
 
-    // 【メソッド】ブレンドモードを指定
+    // 【メソッド】レンダーのブレンドモード
     void blendMode(KotsubuPixelBoard::EnumBlendMode blendMode)
     {
         switch (blendMode) {
@@ -549,13 +554,21 @@ public:
 
 
 
-    // 【メソッド】多角形をレンダリング（3頂点以上）
+    // 【メソッド】凸多角形をレンダリング（すべての内角は180°以下）
     // ＜引数＞ vertices --- 多角形を構成する頂点を格納した配列。vector<Point>
-    // 頂点の並び方や閉じているかは問わない。ただし、描かれる形状には下記クセがある。
-    // 図形の上端からY座標を1つずつ見て、そのYでの最も左のX座標と最も右のX座標を線で結んでゆく。
-    // このメソッドのみ座標の範囲チェック等を行うため安全設計
+    // 図形は閉じていても無くても可。頂点の右回り左回りはどちらでも可。頂点数が3未満なら何もしない。
+    // このメソッドのみ座標の範囲チェック等を行うため安全
     void renderPolygon(std::vector<s3d::Point> vertices, s3d::Point pos, s3d::ColorF col)
     {
+        // @ アルゴリズム
+        // 1. 図形の高さ分の「ラスタ配列」を用意。これには図形外周の左Xと右Xの座標が入る
+        // 2. エッジの数だけループ
+        // 3.     ラスタ配列[エッジY].左or右 = エッジX
+        // 4. 図形の上から高さ分ループ
+        // 5.     ラスタ配列[Y].左から、ラスタ配列[Y].右を塗りつぶす
+        // このアルゴリズムでは、左か右を向くパックマンは描けるが、上と下では口が塗りつぶされてしまう。
+        // 角度によっては凹多角形も表示できるが、便宜上、メソッドの説明文は凸多角形とした。
+
         // 頂点数のチェック
         if (vertices.size() < 3) return;
 
@@ -577,18 +590,15 @@ public:
         if (renderEndY < 0) return;
         else if (renderEndY >= mImg.height()) renderEndY = mImg.height() - 1;
 
-        int topOverY = 0;
-        if (modelTop < 0) topOverY = -modelTop;
+        int modelHeight = modelBottom - modelTop + 1;
 
-        // 1行に左右のモデルX座標を収める構造の「ラスタ配列」を定義。添え字がモデルY（0基準）を表す
-        std::vector<std::vector<int>> rasters(topOverY + modelBottom + 1);
+        // 1行に左右のモデルX座標を収める構造の「ラスタ配列」を定義。添え字がモデルの高さを表す
+        std::vector<std::vector<int>> rasters(modelHeight);
 
 
-        // モデル上端が「はみ出している」なら底上げ
-        if (topOverY) {
-            for (auto& vtx : vertices)
-                vtx.y += topOverY;
-        }
+        // モデル上端を0にする
+        for (auto& vtx : vertices)
+            vtx.y -= modelTop;
 
         // 図形を閉じる
         if (vertices.back() != vertices.front())
@@ -602,12 +612,12 @@ public:
 
         // ラスタ処理
         int imgRight = mImg.width() - 1;
-        int fixIndex = pos.y - topOverY;
+        int fixId    = pos.y + modelTop;
         for (int y = renderStartY; y <= renderEndY ; ++y) {
-            int renderStartX  = pos.x + rasters[y - fixIndex].front();
+            int renderStartX  = pos.x + rasters[y - fixId].front();
             if (renderStartX < 0) renderStartX = 0;
 
-            int renderEndX = pos.x + rasters[y - fixIndex].back();
+            int renderEndX = pos.x + rasters[y - fixId].back();
             if (renderEndX > imgRight) renderEndX = imgRight;
 
             // 1行分の点をレンダリング
