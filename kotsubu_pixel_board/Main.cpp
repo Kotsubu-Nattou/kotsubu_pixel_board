@@ -22,6 +22,7 @@ void Main()
     Point  drawingStartPos;
     Font   font = Font(24);
     int    guiAreaLeft = Window::Width() - 220;
+    bool   isGlowEffect = false;
     size_t shape     = (size_t)KotsubuPixelBoard::EnumShape::Dot;
     size_t blendMode = (size_t)KotsubuPixelBoard::EnumBlendMode::Default;
 
@@ -112,9 +113,12 @@ void Main()
         if (SimpleGUI::Slider(scale, 0.0, 100.0, Vec2(Window::Width() - 210, 80), 200))
             board.setBoardScale(scale);
 
-        SimpleGUI::RadioButtons(shape, { U"Dot", U"Line", U"Line AA", U"Line fadein", U"Polygon" }, Vec2(Window::Width() - 210, 140));
+        if (SimpleGUI::CheckBox(isGlowEffect, U"Glow effect", Vec2(Window::Width() - 210, 130)))
+            board.mGlowEffect = isGlowEffect;
 
-        if (SimpleGUI::RadioButtons(blendMode, { U"Default", U"Alpha", U"Add", U"AddSoft", U"Mul" }, Vec2(Window::Width() - 210, 350)))
+        SimpleGUI::RadioButtons(shape, { U"Dot", U"Line", U"Line AA", U"Line fadein", U"Polygon" }, Vec2(Window::Width() - 210, 180));
+
+        if (SimpleGUI::RadioButtons(blendMode, { U"Default", U"Alpha", U"Add", U"AddSoft", U"Mul" }, Vec2(Window::Width() - 210, 390)))
             board.blendMode((KotsubuPixelBoard::EnumBlendMode)blendMode);
     }
 }

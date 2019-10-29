@@ -41,6 +41,7 @@ std::vector<Point> vtx = { {0, 0}, {8, 4}, {0, 8} };  // レンダリングす�
     board.setBoardScale(2.0);                                    // ズーム
     board.mBoardPos = { 0.0, 5.0 };                              // ボードをスクロール
     board.mBoardSamplerState = s3d::SamplerState::ClampNearest;  // ドット感を強調する（デフォルト）
+    board.mGlowEffect = true;                                    // グロー効果をON
     board.draw();                                                // ドロー
 
     board.changeSize(48, 36);               // サイズを変更（ボードは白紙になる。高負荷注意）
@@ -72,6 +73,7 @@ public:
     s3d::BlendState   mBoardBlendState;    // ボードのブレンドステート
     s3d::SamplerState mBoardSamplerState;  // ボードのサンプラーステート
     bool              mVisible;            // 表示非表示の切り替え
+    bool              mGlowEffect;         // グロー効果の切り替え
 
 
     // 【コンストラクタ】
@@ -125,7 +127,8 @@ public:
         // ＜補足＞ テクスチャやイメージのrelease()やclear()と、draw()が別所の場合、
         // 「無い物」のアクセス発生に注意する。また、テクスチャ登録などの重い処理を
         // 連続で行った場合に、エラーすることがあるので注意する。
-        mTex.release();
+        mTexFront.release();
+        mTexBack.release();
 
         // 描画用イメージをクリア
         mImg = mBlankImg;
@@ -174,16 +177,22 @@ public:
     // 【メソッド】ドロー
     void draw()
     {
-        if (mVisible) {
-            // レンダーステート
-            s3d::RenderStateBlock2D state(mBoardBlendState, mBoardSamplerState);
+        if (!mVisible) return;
+        s3d::RenderStateBlock2D state(mBoardBlendState, mBoardSamplerState);
 
-            // 動的テクスチャを更新（同じ大きさでないと更新されない）
-            mTex.fill(mImg);
+        // 前面の動的テクスチャを更新（同じ大きさでないと更新されない）
+        mTexFront.fill(mImg);
 
-            // 動的テクスチャをスケーリングしてドロー
-            mTex.scaled(mBoardScale).draw(mBoardPos);
+        // 後面のグロー効果処理（前面に描くと期待通りにならない）
+        if (mGlowEffect) {
+            s3d::RenderStateBlock2D state(s3d::SamplerState::ClampLinear);
+            mTexBack.fill(mImg.brightened(50).gaussianBlurred(5));
+            mTexBack.scaled(mBoardScale).draw(mBoardPos);
+            mTexBack.scaled(mBoardScale).draw(mBoardPos);
         }
+
+        // 前面の動的テクスチャをドロー
+        mTexFront.scaled(mBoardScale).draw(mBoardPos);
     }
 
 
@@ -792,6 +801,7 @@ private:
     // 【内部フィールド】
     double               mBoardScale;
     s3d::Image           mBlankImg;
-    s3d::DynamicTexture  mTex;
+    s3d::DynamicTexture  mTexFront;
+    s3d::DynamicTexture  mTexBack;
     std::function<void(s3d::Image&, const s3d::Point&, const s3d::ColorF&)> mFunctor;
 };
