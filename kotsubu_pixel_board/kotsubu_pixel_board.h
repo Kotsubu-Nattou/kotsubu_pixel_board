@@ -44,11 +44,13 @@ std::vector<Point> vtx = { {0, 0}, {8, 4}, {0, 8} };  // レンダリングす�
     board.mGlowEffect = true;                                    // グロー効果をON
     board.draw();                                                // ドロー
 
-    board.changeSize(48, 36);               // サイズを変更（ボードは白紙になる。高負荷注意）
+    board.resize(48, 36);                   // サイズを変更（ボードは白紙になる。高負荷注意）
     board.mVisible = false;                 // 非表示にする
 **************************************************************************************************/
 
 #pragma once
+#include <vector>
+#include <random>
 #include <functional>
 #include <Siv3D.hpp>
 
@@ -64,7 +66,7 @@ public:
     
     // 【公開定数】
     static enum class EnumShape { Dot, Line, LineAA, LineFadein, Polygon };  // レンダリング図形の種類（機能的な意味無し。便宜上用意）
-    static enum class EnumBlendMode { Default, Alpha, Additive, AdditiveSoft, Multiple };  // ブレンドモード
+    static enum class EnumBlendMode { Default, Alpha, Additive, AdditiveSoft, AdditiveHard, Multiple };  // ブレンドモード
 
     
     // 【公開フィールド】
@@ -82,11 +84,11 @@ public:
 
     KotsubuPixelBoard(size_t width, size_t height, double boardScale = 1.0) :
         mBoardBlendState(s3d::BlendState::Default), mBoardSamplerState(s3d::SamplerState::ClampNearest),
-        mVisible(true)
+        mVisible(true), mGlowEffect(false)
     {
-        std::srand((unsigned int)s3d::Time::GetSecSinceEpoch());
+        mRnd.seed(mRndSeedGen());
         setBoardScale(boardScale);
-        changeSize(width, height);
+        resize(width, height);
         blendMode(EnumBlendMode::Default);
     }
 
@@ -112,7 +114,7 @@ public:
     // 【メソッド】イメージのサイズを変更（ドット単位。高負荷）
     // 変化がなかった場合は何もしない。変化した場合は描画イメージはクリアされる
     // ＜注意＞ 連続的に異なるサイズを設定すると、高負荷のためエラー落ちする
-    void changeSize(size_t width, size_t height)
+    void resize(size_t width, size_t height)
     {
         static size_t oldWidth  = -1;
         static size_t oldHeight = -1;
@@ -143,11 +145,11 @@ public:
     // 表示サイズを保ったままドットを拡大できる）
     // 変化がなかった場合は何もしない。変化した場合は描画イメージはクリアされる
     // ＜注意＞ 連続的に異なるサイズを設定すると、高負荷のためエラー落ちする
-    void changeSize(size_t width, size_t height, double dotScale)
+    void resize(size_t width, size_t height, double dotScale)
     {
         if (dotScale < 1.0) dotScale = 1.0;
         double rate = 1.0 / dotScale;
-        changeSize(width * rate, height * rate);
+        resize(width * rate, height * rate);
     }
 
     // 【メソッド】イメージのサイズを変更（現在のサイズを1とする逆倍。高負荷）
@@ -156,9 +158,9 @@ public:
     // 表示サイズを保ったままドットを拡大できる）
     // 変化がなかった場合は何もしない。変化した場合は描画イメージはクリアされる
     // ＜注意＞ 連続的に異なるサイズを設定すると、高負荷のためエラー落ちする
-    void changeSize(double dotScale)
+    void resize(double dotScale)
     {
-        changeSize(mImg.width(), mImg.height(), dotScale);
+        resize(mImg.width(), mImg.height(), dotScale);
     }
 
 
@@ -180,9 +182,6 @@ public:
         if (!mVisible) return;
         s3d::RenderStateBlock2D state(mBoardBlendState, mBoardSamplerState);
 
-        // 前面の動的テクスチャを更新（同じ大きさでないと更新されない）
-        mTexFront.fill(mImg);
-
         // 後面のグロー効果処理（前面に描くと期待通りにならない）
         if (mGlowEffect) {
             s3d::RenderStateBlock2D state(s3d::SamplerState::ClampLinear);
@@ -191,8 +190,15 @@ public:
             mTexBack.scaled(mBoardScale).draw(mBoardPos);
         }
 
+        // 前面の動的テクスチャを更新（同じ大きさでないと更新されない）
+        mTexFront.fill(mImg);
+
         // 前面の動的テクスチャをドロー
         mTexFront.scaled(mBoardScale).draw(mBoardPos);
+        //if (mGlowEffect) {
+        //    s3d::RenderStateBlock2D state(s3d::BlendState::Additive);
+        //    mTexFront.scaled(mBoardScale).draw(mBoardPos);
+        //}
     }
 
 
@@ -230,12 +236,12 @@ public:
 
 
 
-    // 【メソッド】ランダム座標を返す（イメージの範囲内）
-    // s3d::Randomは高機能＆高品質なため重く、単純なランダムであればこちらを推奨
+    // 【メソッド】ランダム座標を返す（イメージの範囲内。高速）
     s3d::Point randomPos()
     {
-        // s3d::Random(総ピクセル数-1)から計算するより、std::randを2つ使った方が速い（randの最大値は32767）
-        return { std::rand() % mImg.width(), std::rand() % mImg.height() };
+        int id = mImg.num_pixels() * (mRnd() / (static_cast<double>(mRnd.max()) + 1));
+        return { id % mImg.width(),
+                 id / mImg.width() };
     }
 
 
@@ -245,19 +251,22 @@ public:
     {
         switch (blendMode) {
         case EnumBlendMode::Alpha:
-            mFunctor = FuncBlender_alpha();        break;
+            mFuncBlender = FuncBlender_alpha();        break;
 
         case EnumBlendMode::Additive:
-            mFunctor = FuncBlender_additive();     break;
+            mFuncBlender = FuncBlender_additive();     break;
 
         case EnumBlendMode::AdditiveSoft:
-            mFunctor = FuncBlender_additiveSoft(); break;
+            mFuncBlender = FuncBlender_additiveSoft(); break;
+
+        case EnumBlendMode::AdditiveHard:
+            mFuncBlender = FuncBlender_additiveHard(); break;
 
         case EnumBlendMode::Multiple:
-            mFunctor = FuncBlender_multiple();     break;
+            mFuncBlender = FuncBlender_multiple();     break;
 
         default:
-            mFunctor = FuncBlender_default();      break;
+            mFuncBlender = FuncBlender_default();      break;
         }
     }
 
@@ -283,7 +292,7 @@ public:
     // 【メソッド】点をレンダリング
     void renderDot(const s3d::Point& pos, const s3d::ColorF& col)
     {
-        mFunctor(mImg, pos, col);
+        mFuncBlender(mImg, pos, col);
     }
 
 
@@ -313,7 +322,7 @@ public:
             int e = dist.x;  // 誤差の初期値（四捨五入のために閾値/2とする）
             for (;;) {
                 // 現在位置に点を描く
-                mFunctor(mImg, now, col);
+                mFuncBlender(mImg, now, col);
 
                 // 始点なら終了
                 if (now.x == startPos.x) break;
@@ -338,7 +347,7 @@ public:
             // y基準
             int e = dist.y;
             for (;;) {
-                mFunctor(mImg, now, col);
+                mFuncBlender(mImg, now, col);
 
                 if (now.y == startPos.y) break;
                 now.y += step.y;
@@ -384,7 +393,7 @@ public:
             int e = dist.x;  // 誤差の初期値（四捨五入のために閾値/2とする）
             for (;;) {
                 // 現在位置に点を描く
-                mFunctor(mImg, now, col);
+                mFuncBlender(mImg, now, col);
 
                 // 始点なら終了
                 if (now.x == startPos.x) break;
@@ -397,12 +406,12 @@ public:
 
                 // 誤差がたまったら
                 if (e >= dist2.x) {
-                    mFunctor(mImg, now, aaCol);                        // 疑似AA
+                    mFuncBlender(mImg, now, aaCol);                        // 疑似AA
 
                     // yを「1ドット」移動
                     now.y += step.y;
 
-                    mFunctor(mImg, { now.x - step.x, now.y }, aaCol);  // 疑似AA
+                    mFuncBlender(mImg, { now.x - step.x, now.y }, aaCol);  // 疑似AA
 
                     // 誤差をリセット。超過分を残すのがミソ
                     e -= dist2.x;
@@ -414,17 +423,17 @@ public:
             // y基準
             int e = dist.y;
             for (;;) {
-                mFunctor(mImg, now, col);
+                mFuncBlender(mImg, now, col);
 
                 if (now.y == startPos.y) break;
                 now.y += step.y;
                 e += dist2.x;
 
                 if (e >= dist2.y) {
-                    mFunctor(mImg, now, aaCol);
+                    mFuncBlender(mImg, now, aaCol);
                     now.x += step.x;
 
-                    mFunctor(mImg, { now.x, now.y - step.y }, aaCol);
+                    mFuncBlender(mImg, { now.x, now.y - step.y }, aaCol);
                     e -= dist2.y;
                 }
             }
@@ -470,7 +479,7 @@ public:
             // ◎ 終点xから分割点xまでループ（通常のAA付き線分の処理）
             for (;;) {
                 // 現在位置に点を描く
-                mFunctor(mImg, now, col);
+                mFuncBlender(mImg, now, col);
 
                 // 分割点ならループを抜ける
                 if (now.x == splitX) break;
@@ -483,12 +492,12 @@ public:
 
                 // 誤差がたまったら
                 if (e >= dist2.x) {
-                    mFunctor(mImg, now, aaCol);                        // 疑似AA
+                    mFuncBlender(mImg, now, aaCol);                        // 疑似AA
 
                     // yを「1ドット」移動
                     now.y += step.y;
 
-                    mFunctor(mImg, { now.x - step.x, now.y }, aaCol);  // 疑似AA
+                    mFuncBlender(mImg, { now.x - step.x, now.y }, aaCol);  // 疑似AA
 
                     // 誤差をリセット。超過分を残すのがミソ
                     e -= dist2.x;
@@ -499,7 +508,7 @@ public:
             if (now.x == startPos.x) return;
 
             // ◎ 分割点xから始点xまでループ（ここがフェードする）
-            double alphaFadeVol = col.a / (1 + std::abs(decayLen));  // アルファのフェード量
+            double alphaFadeVol = col.a / (1 + (double)std::abs(decayLen));  // アルファのフェード量
             for (;;) {
                 // 初回の重複描画を避けるためフローを変更
                 now.x += step.x;
@@ -508,13 +517,13 @@ public:
                 col.a -= alphaFadeVol;  // アルファをフェードアウト
 
                 if (e >= dist2.x) {
-                    mFunctor(mImg, now, ColorF(col, col.a * aaColorRate));
+                    mFuncBlender(mImg, now, ColorF(col, col.a * aaColorRate));
                     now.y += step.y;
-                    mFunctor(mImg, { now.x - step.x, now.y }, ColorF(col, col.a * aaColorRate));
+                    mFuncBlender(mImg, { now.x - step.x, now.y }, ColorF(col, col.a * aaColorRate));
                     e -= dist2.x;
                 }
 
-                mFunctor(mImg, now, col);
+                mFuncBlender(mImg, now, col);
                 if (now.x == startPos.x) break;
             }
         }
@@ -526,22 +535,22 @@ public:
             int splitY   = startPos.y + decayLen;
 
             for (;;) {
-                mFunctor(mImg, now, col);
+                mFuncBlender(mImg, now, col);
                 if (now.y == splitY) break;
 
                 now.y += step.y;
                 e += dist2.x;
 
                 if (e >= dist2.y) {
-                    mFunctor(mImg, now, aaCol);
+                    mFuncBlender(mImg, now, aaCol);
                     now.x += step.x;
-                    mFunctor(mImg, { now.x, now.y - step.y }, aaCol);
+                    mFuncBlender(mImg, { now.x, now.y - step.y }, aaCol);
                     e -= dist2.y;
                 }
             }
             if (now.y == startPos.y) return;
         
-            double alphaFadeVol = col.a / (1 + std::abs(decayLen));
+            double alphaFadeVol = col.a / (1 + (double)std::abs(decayLen));
             for (;;) {
                 now.y += step.y;
                 e += dist2.x;
@@ -549,13 +558,13 @@ public:
                 col.a -= alphaFadeVol;
 
                 if (e >= dist2.y) {
-                    mFunctor(mImg, now, ColorF(col, col.a * aaColorRate));
+                    mFuncBlender(mImg, now, ColorF(col, col.a * aaColorRate));
                     now.x += step.x;
-                    mFunctor(mImg, { now.x, now.y - step.y }, ColorF(col, col.a * aaColorRate));
+                    mFuncBlender(mImg, { now.x, now.y - step.y }, ColorF(col, col.a * aaColorRate));
                     e -= dist2.y;
                 }
 
-                mFunctor(mImg, now, col);
+                mFuncBlender(mImg, now, col);
                 if (now.y == startPos.y) break;
             }
         }
@@ -631,7 +640,7 @@ public:
 
             // 1行分の点をレンダリング
             for (int x = renderStartX; x <= renderEndX; ++x)
-                mFunctor(mImg, { x, y }, col);
+                mFuncBlender(mImg, { x, y }, col);
         }
     }
 
@@ -645,7 +654,7 @@ private:
     //  【内部】レンダリング用の関数オブジェクト、内部関数、フィールド
     //
 
-    // 【内部関数オブジェクト】イメージの1点を書き変える処理群（ブレンドモード別）
+    // 【内部関数オブジェクト】イメージの1点に対するブレンド処理群
     static struct FuncBlender_default {
         void operator()(s3d::Image& img, const s3d::Point& pos, const s3d::ColorF& col)
         {
@@ -677,8 +686,9 @@ private:
         void operator()(s3d::Image& img, const s3d::Point& pos, const s3d::ColorF& col)
         {
             s3d::ColorF base = img[pos];
+            double revColA = 1.0 - col.a;
             s3d::ColorF mix  = { base + col * col.a,
-                                 base.a + col.a };
+                                 base.a * revColA + col.a };
             img[pos].set(mix);
         }
     };
@@ -690,7 +700,19 @@ private:
         {
             s3d::ColorF base = img[pos];
             s3d::ColorF mix  = { base + col * col.a,
-                                (base.a + col.a) * 0.5 };  // 平均をとってみた
+                                (base.a + col.a) * 0.6 };  // 平均より少し上
+            img[pos].set(mix);
+        }
+    };
+
+
+
+    static struct FuncBlender_additiveHard {
+        void operator()(s3d::Image& img, const s3d::Point& pos, const s3d::ColorF& col)
+        {
+            s3d::ColorF base = img[pos];
+            s3d::ColorF mix  = { base + col * col.a,
+                                 base.a + col.a };
             img[pos].set(mix);
         }
     };
@@ -803,5 +825,18 @@ private:
     s3d::Image           mBlankImg;
     s3d::DynamicTexture  mTexFront;
     s3d::DynamicTexture  mTexBack;
-    std::function<void(s3d::Image&, const s3d::Point&, const s3d::ColorF&)> mFunctor;
+    std::function<void(s3d::Image&, const s3d::Point&, const s3d::ColorF&)> mFuncBlender;
+    static std::random_device mRndSeedGen;
+    static std::mt19937       mRnd;
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+//
+//  【内部静的フィールドの定義】
+//
+std::random_device KotsubuPixelBoard::mRndSeedGen;
+std::mt19937       KotsubuPixelBoard::mRnd;

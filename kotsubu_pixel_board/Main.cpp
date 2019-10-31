@@ -11,6 +11,7 @@
 
 void Main()
 {
+    s3d::Window::Resize(1000, 800);
     size_t width = 200, height = 150;
     double scale = 15.0;
     KotsubuPixelBoard  board(width, height, scale);
@@ -118,7 +119,7 @@ void Main()
 
         SimpleGUI::RadioButtons(shape, { U"Dot", U"Line", U"Line AA", U"Line fadein", U"Polygon" }, Vec2(Window::Width() - 210, 180));
 
-        if (SimpleGUI::RadioButtons(blendMode, { U"Default", U"Alpha", U"Add", U"AddSoft", U"Mul" }, Vec2(Window::Width() - 210, 390)))
+        if (SimpleGUI::RadioButtons(blendMode, { U"Default", U"Alpha", U"Add", U"AddSoft", U"AddHard", U"Mul" }, Vec2(Window::Width() - 210, 390)))
             board.blendMode((KotsubuPixelBoard::EnumBlendMode)blendMode);
     }
 }
