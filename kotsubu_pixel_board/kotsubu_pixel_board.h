@@ -24,6 +24,7 @@
 #include <Siv3D.hpp>
 #include "kotsubu_pixel_board.h"
 KotsubuPixelBoard board(32, 24, 10.0);                // 32x24ドット、ズーム率10のお絵かきボードを生成
+board.mBgColor = { 0.5, 0.5, 0.5, 1.0 };              // 背景色 
 std::vector<Point> vtx = { {0, 0}, {8, 4}, {0, 8} };  // レンダリングする多角形の定義
 
 メインループ
@@ -38,8 +39,8 @@ std::vector<Point> vtx = { {0, 0}, {8, 4}, {0, 8} };  // レンダリングす�
         board.mImg[pos].set(Palette::Green);                  // mImgに直接書き込むことも可能
         Circle(pos, 3.0).overwrite(board.mImg, Palette::Red); // 他のs3dメソッドとの組み合わせ
     }
-    board.setBoardScale(2.0);                                    // ズーム
-    board.mBoardPos = { 0.0, 5.0 };                              // ボードをスクロール
+    board.setScale(2.0);                                         // ズーム
+    board.mPos = { 0.0, 5.0 };                                   // ボードをスクロール
     board.mBoardSamplerState = s3d::SamplerState::ClampNearest;  // ドット感を強調する（デフォルト）
     board.mGlowEffect = true;                                    // グロー効果をON
     board.draw();                                                // ドロー
@@ -70,24 +71,47 @@ public:
 
     
     // 【公開フィールド】
+    s3d::Vec2         mPos;                // ピクセルボードの左上位置
     s3d::Image        mImg;                // 描画用イメージ。直接操作が可能
-    s3d::Vec2         mBoardPos;           // ピクセルボードの左上位置
+    s3d::ColorF       mBgColor;            // 背景色
     s3d::BlendState   mBoardBlendState;    // ボードのブレンドステート
     s3d::SamplerState mBoardSamplerState;  // ボードのサンプラーステート
     bool              mVisible;            // 表示非表示の切り替え
     bool              mGlowEffect;         // グロー効果の切り替え
 
 
+    // 【公開構造体】2頂点で表される矩形や線分用。引数生成時などを簡易化
+    static struct Point2 {
+        union {
+            struct { int left, top, right, bottom; };
+            struct { int x0, y0, x1, y1; };
+        };
+        int width()  { return right  - left; }
+        int height() { return bottom - top;  }
+        s3d::Point begin()  { return { left , top    }; }
+        s3d::Point end()    { return { right, bottom }; }
+        int        centerH() { return left + width()  * 0.5; }
+        int        centerV() { return top  + height() * 0.5; }
+        s3d::Point center()  { return { centerH(), centerV() }; }
+        bool isHit(s3d::Point pos)
+            { return (pos.x >= left) && (pos.x <= right) && (pos.y >= top) && (pos.y <= bottom); }
+        Point2() : left(0), top(0), right(0), bottom(0) {}
+        Point2(int x0, int y0, int x1, int y1) : left(x0), top(y0), right(x1), bottom(y1) {}
+        Point2(s3d::Point begin, s3d::Point end) : left(begin.x), top(begin.y), right(end.x), bottom(end.y) {}
+    };
+
+
     // 【コンストラクタ】
     KotsubuPixelBoard() : KotsubuPixelBoard(1, 1)  // デフォルトは、最もミニマムな設定（縦横1ドット）
     {}
 
-    KotsubuPixelBoard(size_t width, size_t height, double boardScale = 1.0) :
+    KotsubuPixelBoard(size_t width, size_t height, double scale = 1.0) :
+        mBgColor(0.0, 0.0, 0.0, 0.0),
         mBoardBlendState(s3d::BlendState::Default), mBoardSamplerState(s3d::SamplerState::ClampNearest),
         mVisible(true), mGlowEffect(false)
     {
         mRnd.seed(mRndSeedGen());
-        setBoardScale(boardScale);
+        setScale(scale);
         resize(width, height);
         blendMode(EnumBlendMode::Default);
     }
@@ -95,18 +119,18 @@ public:
 
 
     // 【セッタ】ピクセルボードの表示スケール
-    void setBoardScale(double boardScale)
+    void setScale(double scale)
     {
-        if (boardScale < 0.0) boardScale = 0.0;
-        mBoardScale = boardScale;
+        if (scale < 0.0) scale = 0.0;
+        mScale = scale;
     }
 
 
 
     // 【ゲッタ】ピクセルボードの表示スケールを返す
-    double getBoardScale()
+    double getScale()
     {
-        return mBoardScale;
+        return mScale;
     }
 
 
@@ -141,7 +165,7 @@ public:
 
     // 【メソッド】イメージのサイズを変更（指定サイズを1とする逆倍。高負荷）
     // dotScale --- 最小1.0から。1で指定サイズそのまま、2で指定サイズの半分となる（このとき、
-    // setBoardScaleメソッドで、表示サイズを2倍（同値）することにより、
+    // setScaleメソッドで、表示サイズを2倍（同値）することにより、
     // 表示サイズを保ったままドットを拡大できる）
     // 変化がなかった場合は何もしない。変化した場合は描画イメージはクリアされる
     // ＜注意＞ 連続的に異なるサイズを設定すると、高負荷のためエラー落ちする
@@ -154,7 +178,7 @@ public:
 
     // 【メソッド】イメージのサイズを変更（現在のサイズを1とする逆倍。高負荷）
     // dotScale --- 最小1.0から。1で変化なし、2でサイズが半分となる（このとき、
-    // setBoardScaleメソッドで、表示サイズを2倍（同値）することにより、
+    // setScaleメソッドで、表示サイズを2倍（同値）することにより、
     // 表示サイズを保ったままドットを拡大できる）
     // 変化がなかった場合は何もしない。変化した場合は描画イメージはクリアされる
     // ＜注意＞ 連続的に異なるサイズを設定すると、高負荷のためエラー落ちする
@@ -180,24 +204,28 @@ public:
     void draw()
     {
         if (!mVisible) return;
-        s3d::RenderStateBlock2D state(mBoardBlendState, mBoardSamplerState);
+
+        // 背景をドロー
+        s3d::RenderStateBlock2D state(s3d::BlendState::Default, s3d::SamplerState::Default2D);
+        s3d::Rect(mPos.x, mPos.y, (mImg.size() * mScale).asPoint()).draw(mBgColor);
+        state = { mBoardBlendState, mBoardSamplerState };
 
         // 後面のグロー効果処理（前面に描くと期待通りにならない）
         if (mGlowEffect) {
             s3d::RenderStateBlock2D state(s3d::SamplerState::ClampLinear);
             mTexBack.fill(mImg.brightened(50).gaussianBlurred(5));
-            mTexBack.scaled(mBoardScale).draw(mBoardPos);
-            mTexBack.scaled(mBoardScale).draw(mBoardPos);
+            mTexBack.scaled(mScale).draw(mPos);
+            mTexBack.scaled(mScale).draw(mPos);
         }
 
         // 前面の動的テクスチャを更新（同じ大きさでないと更新されない）
         mTexFront.fill(mImg);
 
         // 前面の動的テクスチャをドロー
-        mTexFront.scaled(mBoardScale).draw(mBoardPos);
+        mTexFront.scaled(mScale).draw(mPos);
         //if (mGlowEffect) {
         //    s3d::RenderStateBlock2D state(s3d::BlendState::Additive);
-        //    mTexFront.scaled(mBoardScale).draw(mBoardPos);
+        //    mTexFront.scaled(mScale).draw(mPos);
         //}
     }
 
@@ -208,7 +236,7 @@ public:
     // イメージ配列の添え字として利用できる（範囲チェック等は行わないので慎重に）
     s3d::Point toImagePos(const s3d::Point& clientPos)
     {
-        return ((clientPos - mBoardPos) / mBoardScale).asPoint();
+        return ((clientPos - mPos) / mScale).asPoint();
     }
 
 
@@ -217,7 +245,7 @@ public:
     // イメージ座標から、スクロール位置やズーム率を考慮したクライアント座標に変換
     s3d::Point toClientPos(const s3d::Point& imagePos)
     {
-        return (imagePos * mBoardScale + mBoardPos).asPoint();
+        return (imagePos * mScale + mPos).asPoint();
     }
 
 
@@ -232,6 +260,20 @@ public:
     bool checkRange(s3d::Vector2D<int> imagePos)
     {
         return checkRange(imagePos.asPoint());
+    }
+
+
+
+    // 【メソッド】マウスカーソルとの衝突判定
+    bool isMouseOver()
+    {
+        if (!mVisible) return false;
+
+        s3d::Point cursor = s3d::Cursor::Pos();
+        int        right  = mPos.x + mImg.width()  * mScale;
+        int        bottom = mPos.y + mImg.height() * mScale;
+        return (cursor.x >= mPos.x) && (cursor.x < right) &&
+               (cursor.y >= mPos.y) && (cursor.y < bottom);
     }
 
 
@@ -293,6 +335,12 @@ public:
     void renderDot(const s3d::Point& pos, const s3d::ColorF& col)
     {
         mFuncBlender(mImg, pos, col);
+    }
+
+    // 【メソッド】点をレンダリング
+    void renderDot(int x, int y, const s3d::ColorF& col)
+    {
+        mFuncBlender(mImg, { x, y }, col);
     }
 
 
@@ -572,6 +620,66 @@ public:
 
 
 
+    // 【メソッド】矩形をレンダリング
+    void renderRect(s3d::Point startPos, s3d::Point endPos, s3d::ColorF col)
+    {
+        if (startPos.x > endPos.x) std::swap(startPos.x, endPos.x);
+        if (startPos.y > endPos.y) std::swap(startPos.y, endPos.y);
+
+        for (int y = startPos.y; y <= endPos.y; ++y) {
+            for (int x = startPos.x; x <= endPos.x; ++x)
+                mFuncBlender(mImg, { x, y }, col);
+        }
+    }
+
+    // 【メソッド】矩形をレンダリング
+    void renderRect(int left, int top, int right, int bottom, s3d::ColorF col)
+    {
+        renderRect({ left, top }, { right, bottom }, col);
+    }
+
+    // 【メソッド】矩形をレンダリング
+    void renderRect(KotsubuPixelBoard::Point2 rect, s3d::ColorF col)
+    {
+        renderRect(rect.begin(), rect.end(), col);
+    }
+
+
+
+    // 【メソッド】矩形をレンダリング（フレーム）
+    void renderRectFlame(s3d::Point startPos, s3d::Point endPos, s3d::ColorF col)
+    {
+        if (startPos.x > endPos.x) std::swap(startPos.x, endPos.x);
+        if (startPos.y > endPos.y) std::swap(startPos.y, endPos.y);
+
+        // 横線2本
+        for (int y = startPos.y, step = endPos.y - startPos.y;  y <= endPos.y;  y += step) {
+            for (int x = startPos.x; x <= endPos.x; ++x)
+                mFuncBlender(mImg, { x, y }, col);
+        }
+
+        // 縦線2本
+        for (int x = startPos.x, step = endPos.x - startPos.x;  x <= endPos.x;  x += step) {
+            int endY = endPos.y - 1;
+            for (int y = startPos.y + 1;  y <= endY;  ++y)
+                mFuncBlender(mImg, { x, y }, col);
+        }
+    }
+
+    // 【メソッド】矩形をレンダリング（フレーム）
+    void renderRectFlame(int left, int top, int right, int bottom, s3d::ColorF col)
+    {
+        renderRectFlame({ left, top }, { right, bottom }, col);
+    }
+
+    // 【メソッド】矩形をレンダリング
+    void renderRectFlame(KotsubuPixelBoard::Point2 rect, s3d::ColorF col)
+    {
+        renderRectFlame(rect.begin(), rect.end(), col);
+    }
+
+
+
     // 【メソッド】凸多角形をレンダリング（すべての内角は180°以下）
     // ＜引数＞ vertices --- 多角形を構成する頂点を格納した配列。vector<Point>
     // 図形は閉じていても無くても可。頂点の右回り左回りはどちらでも可。頂点数が3未満なら何もしない。
@@ -821,7 +929,7 @@ private:
 
 
     // 【内部フィールド】
-    double               mBoardScale;
+    double               mScale;
     s3d::Image           mBlankImg;
     s3d::DynamicTexture  mTexFront;
     s3d::DynamicTexture  mTexBack;
