@@ -17,7 +17,7 @@ void Main()
     double scale = 15.0;
     KotsubuPixelBoard  board(width, height, scale);
     std::vector<Point> vtx = { {0, -5}, {5, 5}, {-5, 5} };
-    KotsubuColorPicker picker(Vec2(200, 100));
+    KotsubuColorPicker picker;
     ColorF color = { 0.3, 1.0, 0.8, 0.7 };
     bool   isScrolling = false;
     bool   isDragDrawing = false;
@@ -27,6 +27,7 @@ void Main()
     bool   isGlowEffect = false;
     size_t shape     = (size_t)KotsubuPixelBoard::EnumShape::Dot;
     size_t blendMode = (size_t)KotsubuPixelBoard::EnumBlendMode::Default;
+
 
 
     while (System::Update())

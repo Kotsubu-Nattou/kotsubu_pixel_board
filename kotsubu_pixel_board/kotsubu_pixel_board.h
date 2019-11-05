@@ -20,7 +20,7 @@
   最後にdrawメソッドの実行で、次フレームにて表示。
 
 
-◎使い方（Main.cppにて）
+◎実例（Main.cppにて）
 #include <Siv3D.hpp>
 #include "kotsubu_pixel_board.h"
 KotsubuPixelBoard board(32, 24, 10.0);                // 32x24ドット、ズーム率10のお絵かきボードを生成
@@ -86,8 +86,8 @@ public:
             struct { int left, top, right, bottom; };
             struct { int x0, y0, x1, y1; };
         };
-        int width()  { return right  - left; }
-        int height() { return bottom - top;  }
+        int width()  { return right  - left + 1; }
+        int height() { return bottom - top  + 1; }
         s3d::Point begin()  { return { left , top    }; }
         s3d::Point end()    { return { right, bottom }; }
         int        centerH() { return left + width()  * 0.5; }
@@ -320,6 +320,30 @@ public:
     s3d::Color& spoit(const s3d::Point& pos)
     {
         return mImg[pos];
+    }
+
+
+
+    // 【メソッド】クライアントにおける「幅」を返す
+    int getWidthAtClient()
+    {
+        return  mImg.width() * mScale;
+    }
+
+
+
+    // 【メソッド】クライアントにおける「高さ」を返す
+    int getHeightAtClient()
+    {
+        return  mImg.height() * mScale;
+    }
+
+
+
+    // 【メソッド】クライアントにおける「サイズ」を返す
+    s3d::Point getSizeAtClient()
+    {
+        return  { getWidthAtClient(), getHeightAtClient() };
     }
 
 

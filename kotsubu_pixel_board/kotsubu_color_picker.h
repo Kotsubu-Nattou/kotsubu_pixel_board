@@ -1,31 +1,54 @@
 /**************************************************************************************************
-【ヘッダオンリークラス】kotsubu_color_picker
+【ヘッダオンリークラス】kotsubu_color_picker v1.0
 要ライブラリ: OpenSiv3D, kotsubu_pixel_board
 
 ◎概要
-色をダイアログウィンドウで選択。カラーピッカー。
+色の選択をダイアログウィンドウで行う。HSV形式カラーピッカー。
 明示的な解放は不要。
 
-・変数「MyColor（s3d::ColorF型）」の色を設定する例
-    1. ダイアログを表示。このときMyColorのアドレスを渡してバインド
-    2. OKボタンでMyColorの色を書き変えて終了
-    3. Cancelボタンの場合は何もせず終了
+
+◎あらすじ
+    1. 色の変数を用意。MyColor（s3d::ColorF型またはs3d::HSV型）とする
+    2. ダイアログを表示。このときMyColorのアドレスを渡してバインドする
+    3. OKボタン     ---  MyColorの色を書き換えて閉じる
+       Cancelボタン ---  何もせず閉じる
 
 
 ◎注意点
-ダイアログの描画仕様は、メインウィンドウの描画と「共通」のため、
-利用者が描いた図形などに隠れてしまうことがある。
-また、ダイアログの操作系統も「共通」のため、ダイアログウィンドウに隠れた、
-メインウィンドウのボタンやクリックなどに反応してしまう。
-・上記2つの解決策
-    操作の被り --- メインウィンドウ側の操作判定は.isMouseOver()や.isOpen()を利用してブロック
-    描画の被り --- メインループの最後で.process()を実行
+・処理フローについて
+    ダイアログの描画処理は、クライアントウィンドウと「共通」のため、
+    利用者が描いた図形などに隠れてしまうことがある。
+    また、ダイアログの入力操作処理も「共通」のため、ダイアログウィンドウの
+    後ろに隠れた、クライアントウィンドウのボタンなどに反応してしまう。
+    <解決策>
+        1. 描画の被り --- メインループの「最後」で.process()を実行する
+        2. 操作の被り --- クライアント側の操作判定を.isMouseOver()や.isOpen()で囲う
+
+・s3d::ColorF型の運用について
+    ・色相を0にしたときの挙動
+        色相は色を360度範囲で表すので、360°は0°に修正されてしまう。
+
+    ・明度を0にしたときの挙動
+        変数の代入などにより、RGB変換処理が一度でも発生するとR=G=B=0となり、色相と彩度の
+        情報が消滅してしまう。これを再度HSVに変換すると、色相=0(赤)、彩度=0となる
+
+    ・これらが問題となる場合はs3d::HSV型で運用する。かつRGB変換を引き起こす処理を避ける
 
 
-◎使い方（Main.cppにて）
+◎実例（Main.cppにて）
 #include <Siv3D.hpp>
 #include "kotsubu_color_picker.h"
+KotsubuColorPicker picker;
+s3d::ColorF col;
+
 メインループ
+    if (!picker.isMouseOver()) {
+        // ここはマウスカーソルがカラーピッカー上にあるときは処理しない
+        クライアントの入力操作判定など...
+    }
+    クライアントの図形描画など...
+    if (SimpleGUI::Button(U"Open.", Vec2(100, 100))) picker.open(&col);  // カラーピッカーを開く
+    picker.process();                                                    // カラーピッカーのメイン
 **************************************************************************************************/
 
 #pragma once
@@ -38,10 +61,10 @@ class KotsubuColorPicker
 {
 public:
     // 【コンストラクタ】
-    KotsubuColorPicker(s3d::Vec2 pos, s3d::ColorF bgColor = s3d::ColorF(0.15, 0.85)) :
-        mScale(2.0), mPos(pos), mOpened(false), mColorHandle(nullptr), mCurrentColor(),
+    KotsubuColorPicker(s3d::ColorF bgColor = s3d::ColorF(0.15, 0.85)) :
+        mScale(2.0), mOpened(false), mBindColorF(nullptr), mBindHSV(nullptr), mCurrentHsv(),
         mBgColor(bgColor), mBgFlameColor(s3d::ColorF(0.1, 1.0)),
-        mSelectorColor(s3d::ColorF(0.0, 1.0)), mSelectorSize(6),
+        mSelectorColor(s3d::ColorF(0.0, 1.0)), mSelectorSize(7),
         mSliderColor(s3d::ColorF(0.03, 0.85)),
         mSliderKnobColor(s3d::ColorF(0.35, 1.0)), mSliderKnobSize(10),
         mButtonColor(s3d::ColorF(0.35, 1.0)),
@@ -52,26 +75,58 @@ public:
         mAreaAText(mAreaA.right + 10, mAreaA.top, mArea.width() - 10, mAreaA.bottom),
         mAreaCancel(10, mArea.height() - 25, mArea.width() / 2 - 7, mArea.height() - 10),
         mAreaOk(mArea.width() / 2 + 7, mArea.height() - 25, mArea.width() - 10, mArea.height() - 10),
-        mFontNumeral(17, s3d::Typeface::Default, s3d::FontStyle::Default),
-        mFontNumeralColor(s3d::ColorF(0.8, 1.0)),
-        mFontLetter(21, s3d::Typeface::Default, s3d::FontStyle::Default),
+        mFontNumeral(16, s3d::Typeface::Default, s3d::FontStyle::Default),
+        mFontNumeralColor(s3d::ColorF(0.7, 1.0)),
+        mFontLetter(20, s3d::Typeface::Default, s3d::FontStyle::Default),
         mFontLetterColor(s3d::ColorF(0.9, 1.0)),
         mBoard(mArea.width(), mArea.height(), mScale)
     {   
         mBoard.mBgColor = mBgColor;
+        mPos = { s3d::Window::Size() / 2 - mBoard.getSizeAtClient() / 2 };
     }
 
 
 
     // 【メソッド】ダイアログを開く
-    // 引数にバインドする変数を指定。
+    // 引数に色を受け取りたい変数のアドレスを渡してバインドする。
     // OKボタンでバインドした変数に色が返る。Cancelの場合は何もしない
     void open(s3d::ColorF* target)
     {
-        mColorHandle = target;
-        mCurrentColor = *mColorHandle;
-        mOpened = true;
+        mBindColorF = target;
+        mBindHSV    = nullptr;
+        mCurrentHsv = *target;
+        mOpened     = true;
         render();
+    }
+
+    // 【メソッド】ダイアログを開く
+    // 引数に色を受け取りたい変数のアドレスを渡してバインドする。
+    // OKボタンでバインドした変数に色が返る。Cancelの場合は何もしない
+    void open(s3d::ColorF* target, s3d::Point pos)
+    {
+        mPos = pos;
+        open(target);
+    }
+
+    // 【メソッド】ダイアログを開く
+    // 引数に色を受け取りたい変数のアドレスを渡してバインドする。
+    // OKボタンでバインドした変数に色が返る。Cancelの場合は何もしない
+    void open(s3d::HSV* target)
+    {
+        mBindColorF = nullptr;
+        mBindHSV    = target;
+        mCurrentHsv = *target;
+        mOpened     = true;
+        render();
+    }
+
+    // 【メソッド】ダイアログを開く
+    // 引数に色を受け取りたい変数のアドレスを渡してバインドする。
+    // OKボタンでバインドした変数に色が返る。Cancelの場合は何もしない
+    void open(s3d::HSV* target, s3d::Point pos)
+    {
+        mPos = pos;
+        open(target);
     }
 
 
@@ -85,7 +140,7 @@ public:
 
 
 
-    // 【メソッド】ダイアログが開いているかを返す
+    // 【メソッド】ダイアログが開いていればtrue
     bool isOpen()
     {
         return mOpened;
@@ -93,7 +148,7 @@ public:
 
 
 
-    // 【メソッド】ダイアログ上にマウスカーソルがあるかを返す
+    // 【メソッド】ダイアログ上にマウスカーソルがあればtrue
     bool isMouseOver()
     {
         if (mOpened)
@@ -104,25 +159,21 @@ public:
 
 
 
-    // 【メソッド】ダイアログのメインルーチン
-    // 内部で描画と操作判定を行う。ダイアログを利用する場合は、毎フレーム実行すること。
-    // ダイアログが開いていない場合の負荷はほぼ無し
+    // 【メソッド】ダイアログのメイン処理。操作判定と描画を行う
+    // ダイアログを利用する場合は、毎フレーム実行すること（開いていないときの負荷はほぼ無し）
     void process()
     {
         if (!mOpened) return;
-        static bool isScroll = false;
-        static bool isDragSV = false;
-        static bool isDragH  = false;
-        static bool isDragA  = false;
+        static bool isScroll = false, isDragSV = false, isDragH  = false, isDragA  = false;
         static s3d::Point cursorBegin;
-        static s3d::HSV   colorBegin;
+        static s3d::HSV   hsvBegin;
         s3d::Point cursor = mBoard.toImagePos(s3d::Cursor::Pos());
 
 
         // マウス左ダウン
         if (s3d::MouseL.down()) {
             cursorBegin = cursor;
-            colorBegin  = mCurrentColor;
+            hsvBegin  = mCurrentHsv;
 
             if (mAreaSV.isHit(cursor))
                 isDragSV = true;
@@ -139,12 +190,14 @@ public:
 
             else if (mAreaOk.isHit(cursor)) {
                 // 色を返して閉じる
-                *mColorHandle = mCurrentColor;
+                if (mBindColorF != nullptr)
+                    *mBindColorF = mCurrentHsv;
+                else
+                    *mBindHSV    = mCurrentHsv;
                 close();
             }
 
             else if (mArea.isHit(cursor))
-                // スクロールを開始
                 isScroll = true;
         }
 
@@ -155,28 +208,28 @@ public:
 
         if (isDragSV) {
             s3d::Vec2 cursorDist = cursor - cursorBegin;
-            mCurrentColor.s = colorBegin.s + cursorDist.x / mAreaSV.width();
-            mCurrentColor.v = colorBegin.v - cursorDist.y / mAreaSV.height();
-            if (mCurrentColor.s < 0.0) mCurrentColor.s = 0.0;
-            if (mCurrentColor.s > 1.0) mCurrentColor.s = 1.0;
-            if (mCurrentColor.v < 0.0) mCurrentColor.v = 0.0;
-            if (mCurrentColor.v > 1.0) mCurrentColor.v = 1.0;
+            mCurrentHsv.s = hsvBegin.s + cursorDist.x / mAreaSV.width();
+            mCurrentHsv.v = hsvBegin.v - cursorDist.y / mAreaSV.height();
+            if (mCurrentHsv.s < 0.0) mCurrentHsv.s = 0.0;
+            if (mCurrentHsv.s > 1.0) mCurrentHsv.s = 1.0;
+            if (mCurrentHsv.v < 0.0) mCurrentHsv.v = 0.0;
+            if (mCurrentHsv.v > 1.0) mCurrentHsv.v = 1.0;
             render();
         }
 
         else if (isDragH) {
             s3d::Vec2 cursorDist = cursor - cursorBegin;
-            mCurrentColor.h = colorBegin.h + cursorDist.x / mAreaH.width() * 360.0;
-            if (mCurrentColor.h < 0.0)   mCurrentColor.h = 0.0;
-            if (mCurrentColor.h > 360.0) mCurrentColor.h = 360.0;
+            mCurrentHsv.h = hsvBegin.h + cursorDist.x / mAreaH.width() * 360.0;
+            if (mCurrentHsv.h < 0.0)   mCurrentHsv.h = 0.0;
+            if (mCurrentHsv.h > 360.0) mCurrentHsv.h = 360.0;
             render();
         }
 
         else if (isDragA) {
             s3d::Vec2 cursorDist = cursor - cursorBegin;
-            mCurrentColor.a = colorBegin.a + cursorDist.x / mAreaA.width();
-            if (mCurrentColor.a < 0.0) mCurrentColor.a = 0.0;
-            if (mCurrentColor.a > 1.0) mCurrentColor.a = 1.0;
+            mCurrentHsv.a = hsvBegin.a + cursorDist.x / mAreaA.width();
+            if (mCurrentHsv.a < 0.0) mCurrentHsv.a = 0.0;
+            if (mCurrentHsv.a > 1.0) mCurrentHsv.a = 1.0;
             render();
         }
 
@@ -190,12 +243,12 @@ public:
         }
 
 
-        // ウィンドウをドロー
+        // ダイアログの図形をドロー
         mBoard.mPos = mPos;
         mBoard.draw();
 
 
-        // テキストをドロー
+        // ダイアログの文字列をドロー
         drawText();
     }
 
@@ -205,10 +258,11 @@ public:
 
 private:
     // 【内部フィールド】
-    double       mScale;
     s3d::Vec2    mPos;
-    s3d::ColorF* mColorHandle;
-    s3d::HSV     mCurrentColor;
+    double       mScale;
+    s3d::ColorF* mBindColorF;
+    s3d::HSV*    mBindHSV;
+    s3d::HSV     mCurrentHsv;
     bool         mOpened;
     // レイアウト用
     s3d::ColorF  mBgColor;
@@ -227,6 +281,7 @@ private:
 
 
 
+    // 【内部関数】ダイアログの図形をレンダリング
     void render()
     {
         mBoard.clear();        
@@ -236,7 +291,7 @@ private:
 
 
         // SV矩形
-        double h = mCurrentColor.h;
+        double h = mCurrentHsv.h;
         double stepS = 1.0 / mAreaSV.width();
         double stepV = 1.0 / mAreaSV.height();
         double v = 1.0;
@@ -263,15 +318,15 @@ private:
         // Aスライダー
         mBoard.renderRect(mAreaA, mSliderColor);
         int left, top, right, bottom;
-        left  = mAreaA.left + mCurrentColor.a * (mAreaA.width() - mSliderKnobSize);
+        left  = mAreaA.left + mCurrentHsv.a * (mAreaA.width() - mSliderKnobSize);
         right = left + mSliderKnobSize;
         mBoard.renderRect(left, mAreaA.top, right, mAreaA.bottom, mSliderKnobColor);
 
 
         // SVセレクター
         double selectorHalf = mSelectorSize * 0.5;
-        left   = mAreaSV.left + mCurrentColor.s * mAreaSV.width() - selectorHalf;
-        top    = mAreaSV.top  + (1.0 - mCurrentColor.v) * mAreaSV.height() - selectorHalf;
+        left   = mAreaSV.left + mCurrentHsv.s * mAreaSV.width() - selectorHalf;
+        top    = mAreaSV.top  + (1.0 - mCurrentHsv.v) * mAreaSV.height() - selectorHalf;
         right  = left + mSelectorSize;
         bottom = top  + mSelectorSize;
         mBoard.renderRectFlame(left, top, right, bottom, mSelectorColor);
@@ -279,7 +334,7 @@ private:
 
 
         // Hセレクター
-        left   = mAreaH.left + mCurrentColor.h / 360.0 * mAreaH.width() - selectorHalf;
+        left   = mAreaH.left + mCurrentHsv.h / 360.0 * mAreaH.width() - selectorHalf;
         right  = left + mSelectorSize;
         mBoard.renderRectFlame(left, mAreaH.top, right, mAreaH.bottom, mSelectorColor);
         mBoard.renderRectFlame(left - 1, mAreaH.top, right + 1, mAreaH.bottom, mSelectorColor);
@@ -292,9 +347,11 @@ private:
 
 
 
+    // 【内部関数】ダイアログの文字列をドロー
     void drawText()
     {
-        mFontNumeral(U"A  {:.2f}"_fmt(mCurrentColor.a)).drawAt(mBoard.toClientPos(mAreaAText.center()), mFontNumeralColor);
+        s3d::RenderStateBlock2D state(s3d::BlendState::Default, s3d::SamplerState::Default2D);
+        mFontNumeral(U"A  {:.2f}"_fmt(mCurrentHsv.a)).drawAt(mBoard.toClientPos(mAreaAText.center()), mFontNumeralColor);
         mFontLetter(U"Cancel").drawAt(mBoard.toClientPos(mAreaCancel.center()), mFontLetterColor);
         mFontLetter(U"O K").drawAt(mBoard.toClientPos(mAreaOk.center()), mFontLetterColor);
     }
